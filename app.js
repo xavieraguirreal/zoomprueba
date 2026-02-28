@@ -114,15 +114,29 @@
         const grid = $('menu-grid');
         grid.innerHTML = '';
 
-        for (const [id, section] of Object.entries(state.sections)) {
-            const btn = document.createElement('button');
+        var keys = Object.keys(state.sections);
+        // Debug visible
+        setStatus('Secciones encontradas: ' + keys.length + ' | keys: ' + keys.join(', '), 'connected');
+
+        if (keys.length === 0) {
+            grid.innerHTML = '<p style="color:#ef4444;text-align:center;">No se encontraron secciones. APP_SECTIONS=' + typeof window.APP_SECTIONS + '</p>';
+            showScreen($menuScreen);
+            return;
+        }
+
+        for (var i = 0; i < keys.length; i++) {
+            var id = keys[i];
+            var section = state.sections[id];
+            var btn = document.createElement('button');
             btn.className = 'section-btn';
-            btn.dataset.sectionId = id;
+            btn.setAttribute('data-section-id', id);
             btn.innerHTML =
-                '<span class="section-icon">' + section.icon + '</span>' +
+                '<span class="section-icon">' + (section.icon || '') + '</span>' +
                 '<span class="section-title">' + escapeHtml(section.title) + '</span>' +
                 '<span class="section-type">' + typeLabel(section.type) + '</span>';
-            btn.addEventListener('click', () => selectSection(id));
+            btn.addEventListener('click', (function(sectionId) {
+                return function() { selectSection(sectionId); };
+            })(id));
             grid.appendChild(btn);
         }
 
