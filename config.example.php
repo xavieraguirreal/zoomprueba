@@ -27,14 +27,36 @@ define('DB_USER', 'tu_usuario');
 define('DB_PASS', 'tu_password');
 
 // =============================================
-// CONFIGURACION DE LA ENCUESTA
+// SECCIONES DE LA APP
 // =============================================
-define('SURVEY_QUESTION', 'Como estas hoy?');
-define('SURVEY_OPTIONS', json_encode([
-    1 => ['label' => 'Genial',      'emoji' => "\xF0\x9F\x98\x84", 'color' => '#22c55e'],
-    2 => ['label' => 'Bien',        'emoji' => "\xF0\x9F\x98\x8A", 'color' => '#3b82f6'],
-    3 => ['label' => 'Mas o menos', 'emoji' => "\xF0\x9F\x98\x90", 'color' => '#eab308'],
-    4 => ['label' => 'Agotado',     'emoji' => "\xF0\x9F\x98\xA9", 'color' => '#ef4444'],
+define('APP_SECTIONS', json_encode([
+    'encuesta1' => [
+        'title' => 'Como estas hoy?',
+        'type' => 'survey',
+        'icon' => "\xF0\x9F\x93\x8A",
+        'options' => [
+            1 => ['label' => 'Genial',      'emoji' => "\xF0\x9F\x98\x84", 'color' => '#22c55e'],
+            2 => ['label' => 'Bien',        'emoji' => "\xF0\x9F\x98\x8A", 'color' => '#3b82f6'],
+            3 => ['label' => 'Mas o menos', 'emoji' => "\xF0\x9F\x98\x90", 'color' => '#eab308'],
+            4 => ['label' => 'Agotado',     'emoji' => "\xF0\x9F\x98\xA9", 'color' => '#ef4444'],
+        ],
+    ],
+    'saludo' => [
+        'title' => 'Bienvenida',
+        'type' => 'greeting',
+        'icon' => "\xF0\x9F\x91\x8B",
+        'content' => 'Bienvenidos a la reunion de hoy!',
+    ],
+    'encuesta2' => [
+        'title' => 'Que tema vemos hoy?',
+        'type' => 'survey',
+        'icon' => "\xF0\x9F\x93\x8A",
+        'options' => [
+            1 => ['label' => 'Repaso',     'emoji' => "\xF0\x9F\x93\x96", 'color' => '#8b5cf6'],
+            2 => ['label' => 'Tema nuevo', 'emoji' => "\xF0\x9F\x86\x95", 'color' => '#06b6d4'],
+            3 => ['label' => 'Ejercicios', 'emoji' => "\xE2\x9C\x8F\xEF\xB8\x8F", 'color' => '#f97316'],
+        ],
+    ],
 ]));
 
 // =============================================

@@ -1,5 +1,5 @@
 /* ========================================
-   Zoom App Survey - Estilos
+   Zoom App - Multi-seccion
    ======================================== */
 
 * {
@@ -40,6 +40,127 @@ body {
     padding: 32px 24px;
     border: 1px solid #1e2642;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* ---- Loading ---- */
+.loading-text {
+    color: #64748b;
+    font-size: 1.1rem;
+}
+
+/* ---- Menu ---- */
+.menu-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 24px;
+    color: #f1f5f9;
+}
+
+.menu-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.section-btn {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 18px 20px;
+    background: #1a2038;
+    border: 2px solid #252d48;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    color: #e2e8f0;
+    text-align: left;
+}
+
+.section-btn:hover {
+    border-color: #3b82f6;
+    background: #1e2642;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.15);
+}
+
+.section-btn:active {
+    transform: translateY(0);
+}
+
+.section-icon {
+    font-size: 2rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.section-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    flex: 1;
+}
+
+.section-type {
+    font-size: 0.75rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+}
+
+/* ---- Host Controls ---- */
+.host-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.btn-host {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid #252d48;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-back {
+    background: #1a2038;
+    color: #94a3b8;
+    border-color: #252d48;
+}
+
+.btn-back:hover {
+    background: #1e2642;
+    color: #e2e8f0;
+    border-color: #3b82f6;
+}
+
+.btn-close {
+    background: #7f1d1d;
+    color: #fca5a5;
+    border-color: #991b1b;
+}
+
+.btn-close:hover {
+    background: #991b1b;
+    color: #fef2f2;
+}
+
+.btn-reopen {
+    background: #14532d;
+    color: #86efac;
+    border-color: #166534;
+}
+
+.btn-reopen:hover {
+    background: #166534;
+    color: #f0fdf4;
 }
 
 /* ---- Question ---- */
@@ -101,7 +222,7 @@ body {
     font-weight: 600;
 }
 
-/* ---- Loading ---- */
+/* Loading state */
 .option-btn.loading {
     opacity: 0.6;
     pointer-events: none;
@@ -109,7 +230,7 @@ body {
 
 /* ---- Results ---- */
 .results-title {
-    font-size: 1.3rem;
+    font-size: 1.1rem;
     font-weight: 700;
     text-align: center;
     margin-bottom: 24px;
@@ -189,6 +310,31 @@ body {
     color: #93c5fd;
 }
 
+/* ---- Greeting ---- */
+.greeting-content {
+    text-align: center;
+    padding: 20px 0;
+}
+
+.greeting-icon {
+    font-size: 4rem;
+    margin-bottom: 16px;
+    line-height: 1;
+}
+
+.greeting-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 16px;
+}
+
+.greeting-text {
+    font-size: 1.15rem;
+    color: #94a3b8;
+    line-height: 1.6;
+}
+
 /* ---- Status Bar ---- */
 .status-bar {
     text-align: center;
@@ -224,6 +370,19 @@ body {
         padding: 20px 14px;
         border-radius: 12px;
     }
+    .menu-title {
+        font-size: 1.2rem;
+    }
+    .section-btn {
+        padding: 14px 14px;
+        gap: 10px;
+    }
+    .section-icon {
+        font-size: 1.6rem;
+    }
+    .section-title {
+        font-size: 0.95rem;
+    }
     .question {
         font-size: 1.2rem;
         margin-bottom: 20px;
@@ -244,6 +403,19 @@ body {
     }
     .result-label {
         font-size: 0.85rem;
+    }
+    .host-controls {
+        flex-direction: column;
+        gap: 6px;
+    }
+    .greeting-icon {
+        font-size: 3rem;
+    }
+    .greeting-title {
+        font-size: 1.2rem;
+    }
+    .greeting-text {
+        font-size: 1rem;
     }
 }
 
