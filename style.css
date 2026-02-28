@@ -216,17 +216,45 @@ body {
 }
 
 /* ---- Responsive ---- */
-@media (max-width: 360px) {
+@media (max-width: 480px) {
+    .app-container {
+        padding: 8px;
+    }
     .card {
-        padding: 24px 16px;
+        padding: 20px 14px;
+        border-radius: 12px;
     }
     .question {
-        font-size: 1.25rem;
+        font-size: 1.2rem;
+        margin-bottom: 20px;
     }
     .option-btn {
-        padding: 14px 16px;
+        padding: 12px 14px;
+        gap: 10px;
+    }
+    .option-emoji {
+        font-size: 1.6rem;
+    }
+    .option-label {
+        font-size: 1rem;
     }
     .result-row {
-        grid-template-columns: 90px 1fr 35px;
+        grid-template-columns: 85px 1fr 32px;
+        gap: 8px;
+    }
+    .result-label {
+        font-size: 0.85rem;
+    }
+}
+
+@media (max-width: 320px) {
+    .question {
+        font-size: 1.1rem;
+    }
+    .option-btn {
+        padding: 10px 12px;
+    }
+    .result-row {
+        grid-template-columns: 75px 1fr 30px;
     }
 }
