@@ -7,6 +7,11 @@
  */
 require_once __DIR__ . '/config.php';
 sendSecurityHeaders();
+// Anti-cache headers
+header('Cache-Control: no-cache, no-store, must-revalidate');
+header('Pragma: no-cache');
+header('Expires: 0');
+$version = time(); // cache-bust dinamico
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -14,7 +19,7 @@ sendSecurityHeaders();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Zoom App</title>
-    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="stylesheet" href="style.css?v=<?= $version ?>">
     <script src="https://appssdk.zoom.us/sdk.min.js"></script>
 </head>
 <body>
@@ -90,6 +95,6 @@ sendSecurityHeaders();
         // Secciones de la app (desde PHP config)
         window.APP_SECTIONS = <?= APP_SECTIONS ?>;
     </script>
-    <script src="app.js?v=2"></script>
+    <script src="app.js?v=<?= $version ?>"></script>
 </body>
 </html>
