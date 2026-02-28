@@ -1,0 +1,24 @@
+# Forzar HTTPS
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Headers OWASP obligatorios para Zoom Apps
+<IfModule mod_headers.c>
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "no-referrer"
+    Header always set Content-Security-Policy "default-src 'self' https://appssdk.zoom.us; script-src 'self' https://appssdk.zoom.us; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.zoom.us; img-src 'self' data:"
+</IfModule>
+
+# Proteger archivos sensibles
+<FilesMatch "^config\.php$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Deshabilitar listado de directorios
+Options -Indexes
+
+# Charset UTF-8
+AddDefaultCharset UTF-8

@@ -1,0 +1,17 @@
+# Archivos de configuracion con credenciales
+# IMPORTANTE: config.php contiene credenciales, se debe configurar manualmente en el servidor
+config.php
+
+# Archivos de instalacion
+install.php
+
+# IDE y sistema
+.claude/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+Thumbs.db
+.DS_Store
+desktop.ini
