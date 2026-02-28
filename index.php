@@ -91,10 +91,6 @@ $version = time(); // cache-bust dinamico
         </div>
     </div>
 
-    <script>
-        // Secciones de la app (desde PHP config)
-        window.APP_SECTIONS = <?= json_encode(json_decode(APP_SECTIONS, true), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
-    </script>
     <script src="app.js?v=<?= $version ?>"></script>
 </body>
 </html>

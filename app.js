@@ -20,7 +20,7 @@
         isHost: false,
         currentSection: null,
         selectedAnswer: null,
-        sections: window.APP_SECTIONS || {},
+        sections: {},
     };
 
     // ---- Elementos DOM fijos ----
@@ -497,8 +497,21 @@
 
     // ---- Init ----
 
+    async function loadSections() {
+        try {
+            var res = await fetch('api.php?action=sections');
+            var data = await res.json();
+            if (data.sections) {
+                state.sections = data.sections;
+            }
+        } catch (err) {
+            console.error('Error loading sections:', err);
+        }
+    }
+
     async function init() {
         await initZoomSdk();
+        await loadSections();
         await determineRole();
         startAutoRefresh();
     }
