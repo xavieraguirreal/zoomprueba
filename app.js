@@ -317,7 +317,9 @@
         var totalRound = state.wordcloudRound;
         var viewing = wordcloudViewingRound || totalRound;
 
-        if (totalRound > 1 || state.isHost) {
+        // Solo el host dentro de Zoom puede navegar entre rondas
+        // Los participantes solo ven la ronda actual
+        if (state.isHost && state.isInZoom && (totalRound > 1)) {
             nav.classList.remove('hidden');
             var isLive = (viewing === totalRound);
             label.textContent = 'Nube #' + viewing + (isLive ? ' (actual)' : '');

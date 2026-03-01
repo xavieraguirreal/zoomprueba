@@ -1,3 +1,5 @@
+console.log('[admin.js v3] loaded');
+
 var API = 'api.php';
 var TYPE_LABELS = {
     survey: 'Encuesta', greeting: 'Saludo', wordcloud: 'Nube de palabras',
@@ -11,18 +13,26 @@ var editingId = null;
 var deletingId = null;
 
 // ---- Bind all events ----
-document.getElementById('btn-login').addEventListener('click', login);
-document.getElementById('login-password').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') login();
-});
-document.getElementById('btn-create').addEventListener('click', openCreateModal);
-document.getElementById('btn-logout').addEventListener('click', logout);
-document.getElementById('section-form').addEventListener('submit', saveSection);
-document.getElementById('f-title').addEventListener('input', onTitleInput);
-document.getElementById('f-type').addEventListener('change', function() { renderTypeFields(); });
-document.getElementById('btn-cancel-edit').addEventListener('click', closeModal);
-document.getElementById('btn-cancel-delete').addEventListener('click', closeDeleteModal);
-document.getElementById('btn-confirm-delete').addEventListener('click', confirmDelete);
+try {
+    document.getElementById('btn-login').addEventListener('click', login);
+    document.getElementById('login-password').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') login();
+    });
+    document.getElementById('btn-create').addEventListener('click', function() {
+        console.log('[admin.js] btn-create clicked');
+        openCreateModal();
+    });
+    document.getElementById('btn-logout').addEventListener('click', logout);
+    document.getElementById('section-form').addEventListener('submit', saveSection);
+    document.getElementById('f-title').addEventListener('input', onTitleInput);
+    document.getElementById('f-type').addEventListener('change', function() { renderTypeFields(); });
+    document.getElementById('btn-cancel-edit').addEventListener('click', closeModal);
+    document.getElementById('btn-cancel-delete').addEventListener('click', closeDeleteModal);
+    document.getElementById('btn-confirm-delete').addEventListener('click', confirmDelete);
+    console.log('[admin.js] all event listeners bound OK');
+} catch (err) {
+    console.error('[admin.js] Error binding events:', err);
+}
 
 // Close modals on overlay click
 document.getElementById('modal-editor').addEventListener('click', function(e) {
@@ -165,23 +175,30 @@ function renderTable() {
 
 // ---- Create / Edit modal ----
 function openCreateModal() {
-    editingId = null;
-    document.getElementById('modal-title').textContent = 'Nueva seccion';
-    document.getElementById('section-form').reset();
-    document.getElementById('f-key').removeAttribute('readonly');
-    document.getElementById('f-active').checked = true;
-    document.getElementById('f-type').value = 'survey';
-    renderTypeFields();
-    document.getElementById('modal-editor').classList.add('open');
-    document.getElementById('f-title').focus();
+    console.log('[admin.js] openCreateModal called');
+    try {
+        editingId = null;
+        document.getElementById('modal-title').textContent = 'Nueva seccion';
+        document.getElementById('section-form').reset();
+        document.getElementById('f-key').removeAttribute('readonly');
+        document.getElementById('f-active').checked = true;
+        document.getElementById('f-type').value = 'survey';
+        renderTypeFields();
+        document.getElementById('modal-editor').classList.add('open');
+        console.log('[admin.js] modal-editor classes:', document.getElementById('modal-editor').className);
+        document.getElementById('f-title').focus();
+    } catch (err) {
+        console.error('[admin.js] openCreateModal error:', err);
+    }
 }
 
 function openEditModal(id) {
+    console.log('[admin.js] openEditModal called, id:', id);
     var s = null;
     for (var i = 0; i < sections.length; i++) {
         if (sections[i].id == id) { s = sections[i]; break; }
     }
-    if (!s) return;
+    if (!s) { console.warn('[admin.js] section not found for id:', id); return; }
     editingId = id;
     document.getElementById('modal-title').textContent = 'Editar seccion';
     document.getElementById('f-title').value = s.title;
@@ -216,13 +233,13 @@ function saveSection(e) {
     };
 
     api('admin_save', payload).then(function() {
+        btn.disabled = false;
         toast(editingId ? 'Seccion actualizada' : 'Seccion creada');
         closeModal();
         loadSections();
     }).catch(function(e) {
-        toast(e.message, true);
-    }).finally(function() {
         btn.disabled = false;
+        toast(e.message, true);
     });
 }
 
