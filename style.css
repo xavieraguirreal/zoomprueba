@@ -351,6 +351,394 @@ body {
     color: #ef4444;
 }
 
+/* ========================================
+   Word Cloud
+   ======================================== */
+.wordcloud-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    min-height: 200px;
+    padding: 20px 0;
+}
+
+.wordcloud-word {
+    display: inline-block;
+    padding: 4px 10px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    cursor: default;
+}
+
+.wordcloud-input {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.wordcloud-input input {
+    flex: 1;
+    padding: 12px 16px;
+    background: #1a2038;
+    border: 2px solid #252d48;
+    border-radius: 10px;
+    color: #e2e8f0;
+    font-family: inherit;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.wordcloud-input input:focus {
+    border-color: #3b82f6;
+}
+
+.wordcloud-input button {
+    padding: 12px 20px;
+    background: #14532d;
+    color: #86efac;
+    border: 1px solid #166534;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.wordcloud-input button:hover {
+    background: #166534;
+    color: #f0fdf4;
+}
+
+.wordcloud-remaining {
+    text-align: center;
+    margin-top: 8px;
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+/* ========================================
+   Reactions
+   ======================================== */
+.reactions-stage {
+    position: relative;
+    height: 300px;
+    overflow: hidden;
+    margin-bottom: 16px;
+}
+
+.reaction-float {
+    position: absolute;
+    bottom: 0;
+    font-size: 2rem;
+    animation: float-up 2.5s ease-out forwards;
+    pointer-events: none;
+}
+
+@keyframes float-up {
+    0% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+    70% {
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-300px) scale(0.6);
+        opacity: 0;
+    }
+}
+
+.reactions-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.reaction-btn {
+    padding: 16px;
+    font-size: 2rem;
+    background: #1a2038;
+    border: 2px solid #252d48;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    line-height: 1;
+}
+
+.reaction-btn:hover {
+    border-color: #3b82f6;
+    background: #1e2642;
+    transform: scale(1.1);
+}
+
+.reaction-btn:active {
+    transform: scale(0.95);
+}
+
+/* ========================================
+   Quiz
+   ======================================== */
+.quiz-timer {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.quiz-timer span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: #1a2038;
+    border: 4px solid #3b82f6;
+    font-size: 2rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    transition: border-color 0.3s, color 0.3s;
+}
+
+.quiz-timer-warning span {
+    border-color: #eab308;
+    color: #eab308;
+}
+
+.quiz-timer-danger span {
+    border-color: #ef4444;
+    color: #ef4444;
+    animation: pulse-danger 0.5s infinite alternate;
+}
+
+@keyframes pulse-danger {
+    from { transform: scale(1); }
+    to { transform: scale(1.08); }
+}
+
+.quiz-option-btn {
+    justify-content: center;
+    font-size: 1.1rem;
+}
+
+.quiz-correct {
+    border-color: #22c55e !important;
+    background: rgba(34, 197, 94, 0.15) !important;
+}
+
+.quiz-wrong {
+    border-color: #ef4444 !important;
+    opacity: 0.5;
+}
+
+/* Quiz Podium */
+.quiz-podium {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 24px;
+    min-height: 180px;
+}
+
+.podium-place {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 16px 12px;
+    border-radius: 12px 12px 0 0;
+    text-align: center;
+    min-width: 90px;
+}
+
+.podium-place-1 {
+    background: linear-gradient(180deg, #eab308 0%, #854d0e 100%);
+    min-height: 150px;
+    order: 2;
+}
+
+.podium-place-2 {
+    background: linear-gradient(180deg, #94a3b8 0%, #475569 100%);
+    min-height: 110px;
+    order: 1;
+}
+
+.podium-place-3 {
+    background: linear-gradient(180deg, #c2884d 0%, #78350f 100%);
+    min-height: 80px;
+    order: 3;
+}
+
+.podium-medal {
+    font-size: 2rem;
+    line-height: 1;
+}
+
+.podium-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #fff;
+    word-break: break-all;
+}
+
+.podium-score {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 500;
+}
+
+/* Quiz Ranking */
+.quiz-ranking {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ranking-row {
+    display: grid;
+    grid-template-columns: 40px 1fr 50px 60px;
+    align-items: center;
+    padding: 10px 12px;
+    background: #1a2038;
+    border-radius: 8px;
+    border-left: 3px solid #252d48;
+    font-size: 0.85rem;
+}
+
+.ranking-correct {
+    border-left-color: #22c55e;
+}
+
+.ranking-wrong {
+    border-left-color: #ef4444;
+    opacity: 0.7;
+}
+
+.ranking-pos {
+    font-weight: 700;
+    color: #94a3b8;
+}
+
+.ranking-name {
+    font-weight: 500;
+    color: #e2e8f0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ranking-time {
+    text-align: right;
+    color: #64748b;
+    font-size: 0.8rem;
+}
+
+.ranking-score {
+    text-align: right;
+    font-weight: 700;
+    color: #3b82f6;
+}
+
+/* ========================================
+   Scale
+   ======================================== */
+.scale-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 24px 0;
+}
+
+.scale-label {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    min-width: 60px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.scale-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 8px;
+    background: #252d48;
+    border-radius: 4px;
+    outline: none;
+}
+
+.scale-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #3b82f6;
+    cursor: pointer;
+    border: 3px solid #1e40af;
+    transition: transform 0.15s;
+}
+
+.scale-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+}
+
+.scale-slider::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #3b82f6;
+    cursor: pointer;
+    border: 3px solid #1e40af;
+}
+
+.scale-value {
+    text-align: center;
+    font-size: 3rem;
+    font-weight: 700;
+    color: #3b82f6;
+    margin-bottom: 20px;
+    line-height: 1;
+}
+
+.scale-submit-btn {
+    justify-content: center;
+    text-align: center;
+    background: #14532d;
+    border-color: #166534;
+    color: #86efac;
+    font-weight: 600;
+}
+
+.scale-submit-btn:hover {
+    background: #166534;
+    color: #f0fdf4;
+}
+
+/* Scale Results */
+.scale-average {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.scale-avg-number {
+    font-size: 4rem;
+    font-weight: 700;
+    color: #3b82f6;
+    line-height: 1;
+}
+
+.scale-avg-label {
+    font-size: 0.9rem;
+    color: #64748b;
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
 /* ---- Animations ---- */
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
@@ -416,6 +804,35 @@ body {
     }
     .greeting-text {
         font-size: 1rem;
+    }
+    .reactions-stage {
+        height: 220px;
+    }
+    .reactions-buttons {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+    .reaction-btn {
+        padding: 12px;
+        font-size: 1.6rem;
+    }
+    .quiz-timer span {
+        width: 64px;
+        height: 64px;
+        font-size: 1.6rem;
+    }
+    .podium-place {
+        min-width: 75px;
+        padding: 12px 8px;
+    }
+    .podium-medal {
+        font-size: 1.6rem;
+    }
+    .scale-value {
+        font-size: 2.5rem;
+    }
+    .scale-avg-number {
+        font-size: 3rem;
     }
 }
 

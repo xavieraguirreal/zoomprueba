@@ -6,6 +6,8 @@
  * - Si NO hay seccion activa → es host → muestra menu
  * - Si HAY seccion activa → es participante → muestra seccion directo
  * - Host mantiene isHost=true durante toda la sesion
+ *
+ * Tipos soportados: survey, greeting, wordcloud, reactions, quiz, scale
  */
 
 (function () {
@@ -21,6 +23,9 @@
         currentSection: null,
         selectedAnswer: null,
         sections: {},
+        quizAnswered: false,
+        wordcloudCount: 0,
+        reactionLastFetch: null,
     };
 
     // ---- Elementos DOM fijos ----
@@ -30,25 +35,41 @@
     const $surveyScreen = $('survey-screen');
     const $resultsScreen = $('results-screen');
     const $greetingScreen = $('greeting-screen');
+    const $wordcloudScreen = $('wordcloud-screen');
+    const $reactionsScreen = $('reactions-screen');
+    const $quizScreen = $('quiz-screen');
+    const $quizLeaderboardScreen = $('quiz-leaderboard-screen');
+    const $scaleScreen = $('scale-screen');
+    const $scaleResultsScreen = $('scale-results-screen');
     const $statusBar = $('status-bar');
     const $statusText = $('status-text');
+
+    const allScreens = [
+        $loadingScreen, $menuScreen, $surveyScreen, $resultsScreen, $greetingScreen,
+        $wordcloudScreen, $reactionsScreen, $quizScreen, $quizLeaderboardScreen,
+        $scaleScreen, $scaleResultsScreen,
+    ];
 
     // ---- Helpers ----
 
     function hideAllScreens() {
-        [$loadingScreen, $menuScreen, $surveyScreen, $resultsScreen, $greetingScreen].forEach(
-            (s) => s.classList.add('hidden')
-        );
+        allScreens.forEach(function (s) { if (s) s.classList.add('hidden'); });
     }
 
     function showScreen(screen) {
         hideAllScreens();
-        screen.classList.remove('hidden');
+        if (screen) screen.classList.remove('hidden');
     }
 
     function setStatus(text, type) {
         $statusText.textContent = text;
         $statusBar.className = 'status-bar ' + (type || '');
+    }
+
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     // ---- Zoom SDK ----
@@ -68,7 +89,7 @@
             setStatus('Conectado a Zoom', 'connected');
 
             try {
-                const context = await zoomSdk.getMeetingContext();
+                var context = await zoomSdk.getMeetingContext();
                 if (context.meetingID) {
                     state.meetingId = context.meetingID;
                 }
@@ -85,24 +106,21 @@
 
     async function determineRole() {
         try {
-            const res = await fetch(
+            var res = await fetch(
                 'api.php?action=get_active&meeting_id=' + encodeURIComponent(state.meetingId)
             );
-            const data = await res.json();
+            var data = await res.json();
 
             if (data.active) {
-                // Hay seccion activa → participante
                 state.isHost = false;
                 state.currentSection = data.section_id;
-                navigateToSection(data.section_id, data.status);
+                navigateToSection(data.section_id, data.status, data);
             } else {
-                // No hay seccion activa → host
                 state.isHost = true;
                 showMenu();
             }
         } catch (err) {
             console.error('Error determining role:', err);
-            // Fallback: mostrar como host
             state.isHost = true;
             showMenu();
         }
@@ -111,15 +129,14 @@
     // ---- Menu de secciones ----
 
     function showMenu() {
-        const grid = $('menu-grid');
+        var grid = $('menu-grid');
         grid.innerHTML = '';
 
         var keys = Object.keys(state.sections);
-        // Debug visible
         setStatus('Secciones encontradas: ' + keys.length + ' | keys: ' + keys.join(', '), 'connected');
 
         if (keys.length === 0) {
-            grid.innerHTML = '<p style="color:#ef4444;text-align:center;">No se encontraron secciones. APP_SECTIONS=' + typeof window.APP_SECTIONS + '</p>';
+            grid.innerHTML = '<p style="color:#ef4444;text-align:center;">No se encontraron secciones.</p>';
             showScreen($menuScreen);
             return;
         }
@@ -134,8 +151,8 @@
                 '<span class="section-icon">' + (section.icon || '') + '</span>' +
                 '<span class="section-title">' + escapeHtml(section.title) + '</span>' +
                 '<span class="section-type">' + typeLabel(section.type) + '</span>';
-            btn.addEventListener('click', (function(sectionId) {
-                return function() { selectSection(sectionId); };
+            btn.addEventListener('click', (function (sectionId) {
+                return function () { selectSection(sectionId); };
             })(id));
             grid.appendChild(btn);
         }
@@ -147,26 +164,25 @@
         switch (type) {
             case 'survey': return 'Encuesta';
             case 'greeting': return 'Saludo';
+            case 'wordcloud': return 'Nube';
+            case 'reactions': return 'Reacciones';
+            case 'quiz': return 'Quiz';
+            case 'scale': return 'Escala';
             default: return type;
         }
-    }
-
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
     }
 
     // ---- Seleccionar seccion (host) ----
 
     async function selectSection(sectionId) {
-        const section = state.sections[sectionId];
+        var section = state.sections[sectionId];
         if (!section) return;
 
         state.currentSection = sectionId;
         state.selectedAnswer = null;
+        state.quizAnswered = false;
+        state.wordcloudCount = 0;
 
-        // Guardar como seccion activa en el server
         try {
             await fetch('api.php', {
                 method: 'POST',
@@ -186,11 +202,12 @@
 
     // ---- Navegar a una seccion ----
 
-    function navigateToSection(sectionId, status) {
-        const section = state.sections[sectionId];
+    function navigateToSection(sectionId, status, pollData) {
+        var section = state.sections[sectionId];
         if (!section) return;
 
         state.currentSection = sectionId;
+        stopQuizTimer();
 
         switch (section.type) {
             case 'survey':
@@ -203,12 +220,27 @@
             case 'greeting':
                 renderGreeting(section);
                 break;
+            case 'wordcloud':
+                renderWordCloud(section, sectionId, status);
+                break;
+            case 'reactions':
+                renderReactions(section);
+                break;
+            case 'quiz':
+                renderQuiz(section, sectionId, status, pollData);
+                break;
+            case 'scale':
+                if (status === 'closed') {
+                    loadScaleResults(sectionId);
+                } else {
+                    renderScale(section, sectionId);
+                }
+                break;
             default:
                 renderGreeting(section);
                 break;
         }
 
-        // Iniciar polling para participantes
         if (!state.isHost) {
             startPolling();
         }
@@ -219,26 +251,29 @@
     function renderSurvey(section, sectionId) {
         $('survey-question').textContent = section.title;
 
-        const optionsContainer = $('survey-options');
+        var optionsContainer = $('survey-options');
         optionsContainer.innerHTML = '';
 
-        for (const [value, opt] of Object.entries(section.options)) {
-            const btn = document.createElement('button');
+        for (var key in section.options) {
+            var opt = section.options[key];
+            var value = parseInt(key);
+            var btn = document.createElement('button');
             btn.className = 'option-btn';
-            if (parseInt(value) === state.selectedAnswer) {
+            if (value === state.selectedAnswer) {
                 btn.classList.add('selected');
             }
-            btn.dataset.answer = value;
+            btn.dataset.answer = key;
             btn.style.setProperty('--btn-color', opt.color);
             btn.innerHTML =
-                '<span class="option-emoji">' + opt.emoji + '</span>' +
+                '<span class="option-emoji">' + (opt.emoji || '') + '</span>' +
                 '<span class="option-label">' + escapeHtml(opt.label) + '</span>';
-            btn.addEventListener('click', () => submitVote(parseInt(value)));
+            btn.addEventListener('click', (function (v) {
+                return function () { submitVote(v); };
+            })(value));
             optionsContainer.appendChild(btn);
         }
 
-        // Host controls
-        const hostControls = $('host-controls');
+        var hostControls = $('host-controls');
         if (state.isHost) {
             hostControls.classList.remove('hidden');
         } else {
@@ -255,8 +290,7 @@
         $('greeting-title').textContent = section.title;
         $('greeting-text').textContent = section.content || '';
 
-        // Host controls
-        const hostControls = $('host-controls-greeting');
+        var hostControls = $('host-controls-greeting');
         if (state.isHost) {
             hostControls.classList.remove('hidden');
         } else {
@@ -266,14 +300,515 @@
         showScreen($greetingScreen);
     }
 
-    // ---- Votar ----
+    // ============================================
+    // WORD CLOUD
+    // ============================================
 
-    async function submitVote(answer) {
-        const buttons = $('survey-options').querySelectorAll('.option-btn');
-        buttons.forEach((btn) => btn.classList.add('loading'));
+    function renderWordCloud(section, sectionId, status) {
+        $('wordcloud-title').textContent = section.title;
+        $('wordcloud-input').placeholder = section.placeholder || 'Escribe una palabra...';
+        $('wordcloud-input').value = '';
+
+        var hostControls = $('host-controls-wordcloud');
+        if (state.isHost) {
+            hostControls.classList.remove('hidden');
+        } else {
+            hostControls.classList.add('hidden');
+        }
+
+        var inputArea = $('wordcloud-input-area');
+        if (status === 'closed') {
+            inputArea.classList.add('hidden');
+        } else {
+            inputArea.classList.remove('hidden');
+        }
+
+        $('wordcloud-remaining').textContent = '';
+        $('wordcloud-cloud').innerHTML = '<p style="color:#64748b;text-align:center;">Cargando...</p>';
+
+        showScreen($wordcloudScreen);
+        loadWordCloud(sectionId);
+    }
+
+    async function loadWordCloud(sectionId) {
+        try {
+            var res = await fetch(
+                'api.php?action=get_words&meeting_id=' + encodeURIComponent(state.meetingId) +
+                '&section_id=' + encodeURIComponent(sectionId)
+            );
+            var data = await res.json();
+            renderWordCloudWords(data.words || []);
+        } catch (err) {
+            console.error('Error loading wordcloud:', err);
+        }
+    }
+
+    var wordcloudColors = ['#3b82f6', '#ef4444', '#22c55e', '#eab308', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+
+    function renderWordCloudWords(words) {
+        var cloud = $('wordcloud-cloud');
+        cloud.innerHTML = '';
+
+        if (words.length === 0) {
+            cloud.innerHTML = '<p style="color:#64748b;text-align:center;">Aun no hay palabras</p>';
+            return;
+        }
+
+        var maxCount = 1;
+        for (var i = 0; i < words.length; i++) {
+            if (words[i].count > maxCount) maxCount = words[i].count;
+        }
+
+        for (var j = 0; j < words.length; j++) {
+            var w = words[j];
+            var ratio = w.count / maxCount;
+            var fontSize = 0.9 + ratio * 2.1; // 0.9rem to 3rem
+            var color = wordcloudColors[j % wordcloudColors.length];
+
+            var span = document.createElement('span');
+            span.className = 'wordcloud-word';
+            span.textContent = w.word;
+            span.style.fontSize = fontSize + 'rem';
+            span.style.color = color;
+            cloud.appendChild(span);
+        }
+    }
+
+    async function submitWord() {
+        var input = $('wordcloud-input');
+        var word = input.value.trim();
+        if (!word) return;
+
+        var section = state.sections[state.currentSection];
+        var maxWords = (section && section.max_words) ? section.max_words : 3;
 
         try {
-            const response = await fetch('api.php', {
+            var response = await fetch('api.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'submit_word',
+                    meeting_id: state.meetingId,
+                    section_id: state.currentSection,
+                    user_id: state.userId,
+                    word: word,
+                }),
+            });
+
+            var data = await response.json();
+
+            if (data.success) {
+                input.value = '';
+                state.wordcloudCount++;
+                var remaining = maxWords - state.wordcloudCount;
+                $('wordcloud-remaining').textContent = remaining > 0
+                    ? remaining + ' palabra(s) restante(s)'
+                    : 'Limite alcanzado';
+                if (remaining <= 0) {
+                    $('wordcloud-input-area').classList.add('hidden');
+                }
+                renderWordCloudWords(data.words || []);
+            } else {
+                alert(data.error || 'Error');
+            }
+        } catch (err) {
+            console.error('Error submitting word:', err);
+        }
+    }
+
+    // ============================================
+    // REACTIONS
+    // ============================================
+
+    function renderReactions(section) {
+        $('reactions-title').textContent = section.title;
+
+        var hostControls = $('host-controls-reactions');
+        if (state.isHost) {
+            hostControls.classList.remove('hidden');
+        } else {
+            hostControls.classList.add('hidden');
+        }
+
+        // Limpiar stage
+        $('reactions-stage').innerHTML = '';
+
+        // Crear botones de emojis
+        var buttonsContainer = $('reactions-buttons');
+        buttonsContainer.innerHTML = '';
+
+        var emojis = section.emojis || [];
+        for (var i = 0; i < emojis.length; i++) {
+            var btn = document.createElement('button');
+            btn.className = 'reaction-btn';
+            btn.textContent = emojis[i];
+            btn.addEventListener('click', (function (emoji) {
+                return function () { sendReaction(emoji); };
+            })(emojis[i]));
+            buttonsContainer.appendChild(btn);
+        }
+
+        state.reactionLastFetch = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        showScreen($reactionsScreen);
+    }
+
+    async function sendReaction(emoji) {
+        // Animacion local inmediata
+        spawnReactionFloat(emoji);
+
+        try {
+            await fetch('api.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'send_reaction',
+                    meeting_id: state.meetingId,
+                    emoji: emoji,
+                    user_id: state.userId,
+                }),
+            });
+        } catch (err) {
+            console.error('Error sending reaction:', err);
+        }
+    }
+
+    function spawnReactionFloat(emoji) {
+        var stage = $('reactions-stage');
+        if (!stage) return;
+
+        var span = document.createElement('span');
+        span.className = 'reaction-float';
+        span.textContent = emoji;
+        span.style.left = (Math.random() * 80 + 10) + '%';
+        stage.appendChild(span);
+
+        setTimeout(function () {
+            if (span.parentNode) span.parentNode.removeChild(span);
+        }, 2500);
+    }
+
+    async function fetchReactions() {
+        if (!state.reactionLastFetch) return;
+
+        try {
+            var res = await fetch(
+                'api.php?action=get_reactions&meeting_id=' + encodeURIComponent(state.meetingId) +
+                '&since=' + encodeURIComponent(state.reactionLastFetch)
+            );
+            var data = await res.json();
+
+            if (data.reactions && data.reactions.length > 0) {
+                for (var i = 0; i < data.reactions.length; i++) {
+                    var r = data.reactions[i];
+                    if (r.user_id !== state.userId) {
+                        spawnReactionFloat(r.emoji);
+                    }
+                }
+            }
+            if (data.server_time) {
+                state.reactionLastFetch = data.server_time;
+            }
+        } catch (err) {
+            console.error('Error fetching reactions:', err);
+        }
+    }
+
+    // ============================================
+    // QUIZ
+    // ============================================
+
+    var quizTimerInterval = null;
+
+    function stopQuizTimer() {
+        if (quizTimerInterval) {
+            clearInterval(quizTimerInterval);
+            quizTimerInterval = null;
+        }
+    }
+
+    function renderQuiz(section, sectionId, status, pollData) {
+        $('quiz-question').textContent = section.title;
+
+        var hostControls = $('host-controls-quiz');
+        if (state.isHost) {
+            hostControls.classList.remove('hidden');
+        } else {
+            hostControls.classList.add('hidden');
+        }
+
+        var timerEl = $('quiz-timer');
+        var startBtn = $('quiz-start');
+        var optionsEl = $('quiz-options');
+
+        optionsEl.innerHTML = '';
+        timerEl.classList.add('hidden');
+        startBtn.classList.add('hidden');
+        stopQuizTimer();
+
+        var startedAt = (pollData && pollData.started_at) ? pollData.started_at : null;
+        var timeLimit = section.time_limit || 30;
+
+        // Si esta cerrado, mostrar leaderboard
+        if (status === 'closed') {
+            loadQuizResults(sectionId);
+            return;
+        }
+
+        // Si no ha iniciado (started_at es null)
+        if (!startedAt) {
+            // Host ve boton iniciar
+            if (state.isHost) {
+                startBtn.classList.remove('hidden');
+            } else {
+                // Participante espera
+                optionsEl.innerHTML = '<p style="color:#64748b;text-align:center;">Esperando que el host inicie el quiz...</p>';
+            }
+            showScreen($quizScreen);
+            return;
+        }
+
+        // Quiz activo - mostrar opciones y timer
+        var serverStarted = new Date(startedAt.replace(' ', 'T') + 'Z');
+        var now = new Date();
+        var elapsedSec = (now.getTime() - serverStarted.getTime()) / 1000;
+        var remaining = Math.max(0, Math.ceil(timeLimit - elapsedSec));
+
+        if (remaining <= 0 && !state.quizAnswered) {
+            // Tiempo expirado
+            optionsEl.innerHTML = '<p style="color:#ef4444;text-align:center;font-size:1.2rem;">Tiempo agotado!</p>';
+            showScreen($quizScreen);
+            return;
+        }
+
+        // Mostrar timer
+        timerEl.classList.remove('hidden');
+        $('quiz-timer-value').textContent = remaining;
+        updateTimerColor(remaining, timeLimit);
+
+        // Iniciar countdown
+        quizTimerInterval = setInterval(function () {
+            var nowInner = new Date();
+            var elapsedInner = (nowInner.getTime() - serverStarted.getTime()) / 1000;
+            var rem = Math.max(0, Math.ceil(timeLimit - elapsedInner));
+            $('quiz-timer-value').textContent = rem;
+            updateTimerColor(rem, timeLimit);
+
+            if (rem <= 0) {
+                stopQuizTimer();
+                if (!state.quizAnswered) {
+                    optionsEl.innerHTML = '<p style="color:#ef4444;text-align:center;font-size:1.2rem;">Tiempo agotado!</p>';
+                }
+            }
+        }, 1000);
+
+        // Renderizar opciones
+        if (!state.quizAnswered) {
+            renderQuizOptions(section, sectionId, serverStarted);
+        } else {
+            optionsEl.innerHTML = '<p style="color:#22c55e;text-align:center;font-size:1.2rem;">Respuesta enviada! Esperando resultados...</p>';
+        }
+
+        showScreen($quizScreen);
+    }
+
+    function updateTimerColor(remaining, timeLimit) {
+        var timerEl = $('quiz-timer');
+        timerEl.classList.remove('quiz-timer-warning', 'quiz-timer-danger');
+        if (remaining <= 5) {
+            timerEl.classList.add('quiz-timer-danger');
+        } else if (remaining <= 10) {
+            timerEl.classList.add('quiz-timer-warning');
+        }
+    }
+
+    function renderQuizOptions(section, sectionId, serverStarted) {
+        var optionsEl = $('quiz-options');
+        optionsEl.innerHTML = '';
+
+        for (var key in section.options) {
+            var opt = section.options[key];
+            var value = parseInt(key);
+            var btn = document.createElement('button');
+            btn.className = 'option-btn quiz-option-btn';
+            btn.style.setProperty('--btn-color', opt.color);
+            btn.innerHTML = '<span class="option-label">' + escapeHtml(opt.label) + '</span>';
+            btn.addEventListener('click', (function (v, started) {
+                return function () {
+                    if (state.quizAnswered) return;
+                    submitQuizAnswer(v, started);
+                };
+            })(value, serverStarted));
+            optionsEl.appendChild(btn);
+        }
+    }
+
+    async function submitQuizAnswer(answer, serverStarted) {
+        if (state.quizAnswered) return;
+        state.quizAnswered = true;
+
+        var timeMs = Math.max(0, new Date().getTime() - serverStarted.getTime());
+
+        // Deshabilitar botones
+        var btns = $('quiz-options').querySelectorAll('.option-btn');
+        btns.forEach(function (b) { b.classList.add('loading'); });
+
+        try {
+            var response = await fetch('api.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'quiz_answer',
+                    meeting_id: state.meetingId,
+                    section_id: state.currentSection,
+                    user_id: state.userId,
+                    user_name: state.userName,
+                    answer: answer,
+                    time_ms: timeMs,
+                }),
+            });
+
+            var data = await response.json();
+            if (data.success) {
+                $('quiz-options').innerHTML = '<p style="color:#22c55e;text-align:center;font-size:1.2rem;">Respuesta enviada! Esperando resultados...</p>';
+            } else {
+                alert(data.error || 'Error');
+                state.quizAnswered = false;
+                btns.forEach(function (b) { b.classList.remove('loading'); });
+            }
+        } catch (err) {
+            console.error('Error submitting quiz answer:', err);
+            state.quizAnswered = false;
+            btns.forEach(function (b) { b.classList.remove('loading'); });
+        }
+    }
+
+    async function startQuiz() {
+        try {
+            var response = await fetch('api.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'start_quiz',
+                    meeting_id: state.meetingId,
+                }),
+            });
+            var data = await response.json();
+            if (data.success) {
+                var section = state.sections[state.currentSection];
+                if (section) {
+                    renderQuiz(section, state.currentSection, 'voting', { started_at: data.started_at });
+                }
+            }
+        } catch (err) {
+            console.error('Error starting quiz:', err);
+        }
+    }
+
+    async function loadQuizResults(sectionId) {
+        try {
+            var res = await fetch(
+                'api.php?action=quiz_results&meeting_id=' + encodeURIComponent(state.meetingId) +
+                '&section_id=' + encodeURIComponent(sectionId)
+            );
+            var data = await res.json();
+            showQuizLeaderboard(data.results, sectionId);
+        } catch (err) {
+            console.error('Error loading quiz results:', err);
+        }
+    }
+
+    function showQuizLeaderboard(results, sectionId) {
+        var section = state.sections[sectionId];
+        stopQuizTimer();
+
+        var hostControls = $('host-controls-leaderboard');
+        if (state.isHost) {
+            hostControls.classList.remove('hidden');
+        } else {
+            hostControls.classList.add('hidden');
+        }
+
+        // Podio (top 3)
+        var podium = $('quiz-podium');
+        podium.innerHTML = '';
+        var leaderboard = results.leaderboard || [];
+        var medals = ['🥇', '🥈', '🥉'];
+        var podiumOrder = [1, 0, 2]; // 2do, 1ro, 3ro
+
+        for (var p = 0; p < podiumOrder.length; p++) {
+            var idx = podiumOrder[p];
+            var div = document.createElement('div');
+            div.className = 'podium-place podium-place-' + (idx + 1);
+
+            if (idx < leaderboard.length) {
+                var entry = leaderboard[idx];
+                var name = entry.user_name || entry.user_id;
+                if (name.length > 12) name = name.substring(0, 12) + '...';
+                div.innerHTML =
+                    '<span class="podium-medal">' + medals[idx] + '</span>' +
+                    '<span class="podium-name">' + escapeHtml(name) + '</span>' +
+                    '<span class="podium-score">' + entry.score + ' pts</span>';
+            } else {
+                div.innerHTML = '<span class="podium-medal">' + medals[idx] + '</span><span class="podium-name">-</span>';
+            }
+            podium.appendChild(div);
+        }
+
+        // Ranking completo
+        var ranking = $('quiz-ranking');
+        ranking.innerHTML = '';
+
+        for (var i = 0; i < leaderboard.length; i++) {
+            var r = leaderboard[i];
+            var row = document.createElement('div');
+            row.className = 'ranking-row' + (r.correct ? ' ranking-correct' : ' ranking-wrong');
+            var rName = r.user_name || r.user_id;
+            var timeStr = r.time_ms > 0 ? (r.time_ms / 1000).toFixed(1) + 's' : '-';
+            row.innerHTML =
+                '<span class="ranking-pos">#' + (i + 1) + '</span>' +
+                '<span class="ranking-name">' + escapeHtml(rName) + '</span>' +
+                '<span class="ranking-time">' + timeStr + '</span>' +
+                '<span class="ranking-score">' + r.score + '</span>';
+            ranking.appendChild(row);
+        }
+
+        showScreen($quizLeaderboardScreen);
+    }
+
+    // ============================================
+    // SCALE
+    // ============================================
+
+    function renderScale(section, sectionId) {
+        $('scale-title').textContent = section.title;
+
+        var slider = $('scale-slider');
+        var minVal = section.min || 1;
+        var maxVal = section.max || 10;
+        slider.min = minVal;
+        slider.max = maxVal;
+        slider.value = Math.round((minVal + maxVal) / 2);
+        $('scale-value').textContent = slider.value;
+
+        $('scale-min-label').textContent = (section.min_label || minVal) + ' (' + minVal + ')';
+        $('scale-max-label').textContent = (section.max_label || maxVal) + ' (' + maxVal + ')';
+
+        var hostControls = $('host-controls-scale');
+        if (state.isHost) {
+            hostControls.classList.remove('hidden');
+        } else {
+            hostControls.classList.add('hidden');
+        }
+
+        showScreen($scaleScreen);
+    }
+
+    async function submitScale() {
+        var slider = $('scale-slider');
+        var answer = parseInt(slider.value);
+
+        try {
+            var response = await fetch('api.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -286,7 +821,138 @@
                 }),
             });
 
-            const data = await response.json();
+            var data = await response.json();
+            if (data.success) {
+                state.selectedAnswer = answer;
+                $('scale-submit').textContent = 'Enviado!';
+                $('scale-submit').classList.add('loading');
+                setTimeout(function () {
+                    $('scale-submit').textContent = 'Enviar';
+                    $('scale-submit').classList.remove('loading');
+                }, 2000);
+            } else {
+                alert(data.error || 'Error');
+            }
+        } catch (err) {
+            console.error('Error submitting scale:', err);
+        }
+    }
+
+    async function loadScaleResults(sectionId) {
+        try {
+            var res = await fetch(
+                'api.php?action=results&meeting_id=' + encodeURIComponent(state.meetingId) +
+                '&section_id=' + encodeURIComponent(sectionId)
+            );
+            var data = await res.json();
+
+            // The poll endpoint returns scale results differently, try quiz_results-style
+            // Actually we extended the results endpoint to work. Let's fetch via poll or dedicated.
+            // Use the scale-specific data from poll
+            var pollRes = await fetch(
+                'api.php?action=poll&meeting_id=' + encodeURIComponent(state.meetingId)
+            );
+            var pollData = await pollRes.json();
+
+            if (pollData.results) {
+                showScaleResults(pollData.results, sectionId);
+            } else {
+                // Fallback: build from survey results
+                showScaleResultsFromSurvey(data.results, sectionId);
+            }
+        } catch (err) {
+            console.error('Error loading scale results:', err);
+        }
+    }
+
+    function showScaleResults(results, sectionId) {
+        var section = state.sections[sectionId];
+
+        $('scale-results-title').textContent = 'Resultados: ' + (section ? section.title : '');
+
+        // Average
+        var avgEl = $('scale-average');
+        avgEl.innerHTML = '<div class="scale-avg-number">' + results.average + '</div><div class="scale-avg-label">Promedio</div>';
+
+        // Distribution
+        var distEl = $('scale-distribution');
+        distEl.innerHTML = '';
+
+        var maxCount = 1;
+        var distribution = results.distribution || {};
+        for (var k in distribution) {
+            if (distribution[k] > maxCount) maxCount = distribution[k];
+        }
+
+        var minVal = section ? (section.min || 1) : 1;
+        var maxVal = section ? (section.max || 10) : 10;
+
+        for (var v = minVal; v <= maxVal; v++) {
+            var count = distribution[v] || 0;
+            var percent = maxCount > 0 ? (count / maxCount) * 100 : 0;
+            var row = document.createElement('div');
+            row.className = 'result-row';
+            row.innerHTML =
+                '<div class="result-label"><span>' + v + '</span></div>' +
+                '<div class="result-bar-container">' +
+                    '<div class="result-bar" style="--bar-color: #3b82f6; width: ' + percent + '%"></div>' +
+                '</div>' +
+                '<span class="result-count">' + count + '</span>';
+            distEl.appendChild(row);
+        }
+
+        $('scale-total').textContent = results.total || 0;
+
+        var hostControls = $('host-controls-scale-results');
+        if (state.isHost) {
+            hostControls.classList.remove('hidden');
+        } else {
+            hostControls.classList.add('hidden');
+        }
+
+        showScreen($scaleResultsScreen);
+    }
+
+    function showScaleResultsFromSurvey(results, sectionId) {
+        // Fallback if poll didn't give scale-specific data
+        var section = state.sections[sectionId];
+        var minVal = section ? (section.min || 1) : 1;
+        var maxVal = section ? (section.max || 10) : 10;
+
+        var distribution = {};
+        var total = results.total || 0;
+        var sum = 0;
+        for (var v = minVal; v <= maxVal; v++) {
+            var count = (results.answers && results.answers[v]) ? results.answers[v] : 0;
+            distribution[v] = count;
+            sum += v * count;
+        }
+        var avg = total > 0 ? Math.round(sum / total * 10) / 10 : 0;
+
+        showScaleResults({ average: avg, total: total, distribution: distribution }, sectionId);
+    }
+
+    // ---- Votar (survey) ----
+
+    async function submitVote(answer) {
+        var buttons = $('survey-options').querySelectorAll('.option-btn');
+        buttons.forEach(function (btn) { btn.classList.add('loading'); });
+
+        try {
+            var response = await fetch('api.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'vote',
+                    meeting_id: state.meetingId,
+                    section_id: state.currentSection,
+                    user_id: state.userId,
+                    user_name: state.userName,
+                    answer: answer,
+                }),
+            });
+
+            var data = await response.json();
 
             if (data.success) {
                 state.selectedAnswer = answer;
@@ -298,34 +964,35 @@
             console.error('Error submitting vote:', err);
             alert('Error de conexion. Intenta de nuevo.');
         } finally {
-            buttons.forEach((btn) => btn.classList.remove('loading'));
+            buttons.forEach(function (btn) { btn.classList.remove('loading'); });
         }
     }
 
-    // ---- Resultados ----
+    // ---- Resultados (survey) ----
 
     function showResults(results) {
-        const section = state.sections[state.currentSection];
+        var section = state.sections[state.currentSection];
         if (!section || section.type !== 'survey') return;
 
         $('results-title').textContent = 'Resultados: ' + section.title;
 
-        const chart = $('results-chart');
+        var chart = $('results-chart');
         chart.innerHTML = '';
 
-        const total = results.total || 0;
+        var total = results.total || 0;
         $('total-votes').textContent = total;
 
-        for (const [value, opt] of Object.entries(section.options)) {
-            const count = results.answers[value] || 0;
-            const percent = total > 0 ? (count / total) * 100 : 0;
+        for (var key in section.options) {
+            var opt = section.options[key];
+            var count = results.answers[key] || 0;
+            var percent = total > 0 ? (count / total) * 100 : 0;
 
-            const row = document.createElement('div');
+            var row = document.createElement('div');
             row.className = 'result-row';
-            row.dataset.answer = value;
+            row.dataset.answer = key;
             row.innerHTML =
                 '<div class="result-label">' +
-                    '<span>' + opt.emoji + '</span>' +
+                    '<span>' + (opt.emoji || '') + '</span>' +
                     '<span>' + escapeHtml(opt.label) + '</span>' +
                 '</div>' +
                 '<div class="result-bar-container">' +
@@ -335,11 +1002,9 @@
             chart.appendChild(row);
         }
 
-        // Host controls
-        const hostControls = $('host-controls-results');
+        var hostControls = $('host-controls-results');
         if (state.isHost) {
             hostControls.classList.remove('hidden');
-            // Ocultar "cambiar respuesta" para el host en modo cerrado
             $('btn-change').classList.add('hidden');
         } else {
             hostControls.classList.add('hidden');
@@ -351,20 +1016,20 @@
 
     async function loadResults(sectionId) {
         try {
-            const res = await fetch(
+            var res = await fetch(
                 'api.php?action=results&meeting_id=' + encodeURIComponent(state.meetingId) +
                 '&section_id=' + encodeURIComponent(sectionId)
             );
-            const data = await res.json();
+            var data = await res.json();
             showResults(data.results);
         } catch (err) {
             console.error('Error loading results:', err);
         }
     }
 
-    // ---- Host: cerrar encuesta ----
+    // ---- Host: cerrar seccion ----
 
-    async function closeSurvey() {
+    async function closeSection() {
         try {
             await fetch('api.php', {
                 method: 'POST',
@@ -374,16 +1039,28 @@
                     meeting_id: state.meetingId,
                 }),
             });
-            // Cargar y mostrar resultados
-            await loadResults(state.currentSection);
+
+            var section = state.sections[state.currentSection];
+            if (!section) return;
+
+            if (section.type === 'survey') {
+                await loadResults(state.currentSection);
+            } else if (section.type === 'quiz') {
+                await loadQuizResults(state.currentSection);
+            } else if (section.type === 'scale') {
+                await loadScaleResults(state.currentSection);
+            } else if (section.type === 'wordcloud') {
+                // Ocultar input, mantener nube
+                $('wordcloud-input-area').classList.add('hidden');
+            }
         } catch (err) {
-            console.error('Error closing survey:', err);
+            console.error('Error closing section:', err);
         }
     }
 
     // ---- Host: reabrir encuesta ----
 
-    async function reopenSurvey() {
+    async function reopenSection() {
         try {
             await fetch('api.php', {
                 method: 'POST',
@@ -393,13 +1070,17 @@
                     meeting_id: state.meetingId,
                 }),
             });
-            // Volver a la pantalla de encuesta
-            const section = state.sections[state.currentSection];
+
+            var section = state.sections[state.currentSection];
             if (section) {
-                renderSurvey(section, state.currentSection);
+                if (section.type === 'survey') {
+                    renderSurvey(section, state.currentSection);
+                } else if (section.type === 'scale') {
+                    renderScale(section, state.currentSection);
+                }
             }
         } catch (err) {
-            console.error('Error reopening survey:', err);
+            console.error('Error reopening section:', err);
         }
     }
 
@@ -407,18 +1088,30 @@
 
     function backToMenu() {
         stopPolling();
+        stopQuizTimer();
         state.currentSection = null;
         state.selectedAnswer = null;
+        state.quizAnswered = false;
+        state.wordcloudCount = 0;
         showMenu();
     }
 
-    // ---- Participante: polling cada 5 seg ----
+    // ---- Participante: polling ----
 
-    let pollInterval = null;
+    var pollInterval = null;
 
     function startPolling() {
         stopPolling();
-        pollInterval = setInterval(pollStatus, 5000);
+        var section = state.sections[state.currentSection];
+        var sectionType = section ? section.type : '';
+
+        // Polling mas rapido para reactions y wordcloud
+        var interval = 5000;
+        if (sectionType === 'reactions') interval = 2000;
+        if (sectionType === 'wordcloud') interval = 3000;
+        if (sectionType === 'quiz') interval = 2000;
+
+        pollInterval = setInterval(pollStatus, interval);
     }
 
     function stopPolling() {
@@ -430,30 +1123,64 @@
 
     async function pollStatus() {
         try {
-            const res = await fetch(
+            var res = await fetch(
                 'api.php?action=poll&meeting_id=' + encodeURIComponent(state.meetingId)
             );
-            const data = await res.json();
+            var data = await res.json();
 
             if (!data.active) return;
 
             // Si cambio la seccion activa, navegar
             if (data.section_id !== state.currentSection) {
                 state.currentSection = data.section_id;
-                navigateToSection(data.section_id, data.status);
+                state.quizAnswered = false;
+                state.wordcloudCount = 0;
+                navigateToSection(data.section_id, data.status, data);
                 return;
             }
 
-            // Si la encuesta se cerro, mostrar resultados
-            if (data.status === 'closed' && data.results) {
-                showResults(data.results);
-                return;
-            }
+            var section = state.sections[state.currentSection];
+            if (!section) return;
+            var sectionType = section.type;
 
-            // Si la encuesta se reabrio, volver a encuesta
-            if (data.status === 'voting') {
-                const section = state.sections[state.currentSection];
-                if (section && section.type === 'survey' && $resultsScreen && !$resultsScreen.classList.contains('hidden')) {
+            // Tipo-especifico
+            if (sectionType === 'wordcloud' && data.words) {
+                renderWordCloudWords(data.words);
+                if (data.status === 'closed') {
+                    $('wordcloud-input-area').classList.add('hidden');
+                }
+            } else if (sectionType === 'reactions' && data.reactions) {
+                for (var i = 0; i < data.reactions.length; i++) {
+                    var r = data.reactions[i];
+                    if (r.user_id !== state.userId) {
+                        spawnReactionFloat(r.emoji);
+                    }
+                }
+            } else if (sectionType === 'quiz') {
+                // Si quiz inicio (started_at ahora existe)
+                if (data.started_at && $quizScreen && !$quizScreen.classList.contains('hidden')) {
+                    var optionsEl = $('quiz-options');
+                    if (optionsEl && optionsEl.querySelector('p') && !state.quizAnswered) {
+                        // Re-render con started_at
+                        renderQuiz(section, state.currentSection, data.status, data);
+                    }
+                }
+                // Si quiz cerrado, mostrar leaderboard
+                if (data.status === 'closed' && data.quiz_results) {
+                    showQuizLeaderboard(data.quiz_results, state.currentSection);
+                    return;
+                }
+            } else if (sectionType === 'scale') {
+                if (data.status === 'closed' && data.results) {
+                    showScaleResults(data.results, state.currentSection);
+                    return;
+                }
+            } else if (sectionType === 'survey') {
+                if (data.status === 'closed' && data.results) {
+                    showResults(data.results);
+                    return;
+                }
+                if (data.status === 'voting' && $resultsScreen && !$resultsScreen.classList.contains('hidden')) {
                     renderSurvey(section, state.currentSection);
                 }
             }
@@ -464,36 +1191,74 @@
 
     // ---- Auto-refresh de resultados (host) ----
 
-    let refreshInterval = null;
+    var refreshInterval = null;
 
     function startAutoRefresh() {
         refreshInterval = setInterval(function () {
-            if (!$resultsScreen.classList.contains('hidden') && state.currentSection) {
+            if (!state.currentSection) return;
+            var section = state.sections[state.currentSection];
+            if (!section) return;
+
+            // Auto-refresh segun tipo
+            if (section.type === 'survey' && $resultsScreen && !$resultsScreen.classList.contains('hidden')) {
                 loadResults(state.currentSection);
+            } else if (section.type === 'wordcloud' && $wordcloudScreen && !$wordcloudScreen.classList.contains('hidden')) {
+                loadWordCloud(state.currentSection);
+            } else if (section.type === 'scale' && $scaleResultsScreen && !$scaleResultsScreen.classList.contains('hidden')) {
+                loadScaleResults(state.currentSection);
             }
         }, 10000);
     }
 
     // ---- Event Listeners ----
 
-    // Host: cerrar encuesta
-    $('btn-close-survey').addEventListener('click', closeSurvey);
-
-    // Host: reabrir encuesta
-    $('btn-reopen-survey').addEventListener('click', reopenSurvey);
+    // Host: cerrar/reabrir (survey)
+    $('btn-close-survey').addEventListener('click', closeSection);
+    $('btn-reopen-survey').addEventListener('click', reopenSection);
 
     // Host: volver al menu (desde todas las pantallas)
     $('btn-back-menu').addEventListener('click', backToMenu);
     $('btn-back-menu-results').addEventListener('click', backToMenu);
     $('btn-back-menu-greeting').addEventListener('click', backToMenu);
+    $('btn-back-menu-wordcloud').addEventListener('click', backToMenu);
+    $('btn-back-menu-reactions').addEventListener('click', backToMenu);
+    $('btn-back-menu-quiz').addEventListener('click', backToMenu);
+    $('btn-back-menu-leaderboard').addEventListener('click', backToMenu);
+    $('btn-back-menu-scale').addEventListener('click', backToMenu);
+    $('btn-back-menu-scale-results').addEventListener('click', backToMenu);
 
-    // Participante: cambiar respuesta
+    // Host: cerrar secciones
+    $('btn-close-wordcloud').addEventListener('click', closeSection);
+    $('btn-close-quiz').addEventListener('click', closeSection);
+    $('btn-close-scale').addEventListener('click', closeSection);
+
+    // Host: reabrir scale
+    $('btn-reopen-scale').addEventListener('click', reopenSection);
+
+    // Participante: cambiar respuesta (survey)
     $('btn-change').addEventListener('click', function () {
-        const section = state.sections[state.currentSection];
+        var section = state.sections[state.currentSection];
         if (section) {
             renderSurvey(section, state.currentSection);
         }
     });
+
+    // Word Cloud: enviar
+    $('wordcloud-submit').addEventListener('click', submitWord);
+    $('wordcloud-input').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') submitWord();
+    });
+
+    // Quiz: iniciar
+    $('quiz-start').addEventListener('click', startQuiz);
+
+    // Scale: slider change
+    $('scale-slider').addEventListener('input', function () {
+        $('scale-value').textContent = this.value;
+    });
+
+    // Scale: enviar
+    $('scale-submit').addEventListener('click', submitScale);
 
     // ---- Init ----
 

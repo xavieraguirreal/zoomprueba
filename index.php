@@ -85,6 +85,95 @@ $version = time(); // cache-bust dinamico
             </div>
         </div>
 
+        <!-- Nube de palabras -->
+        <div id="wordcloud-screen" class="screen hidden">
+            <div class="card">
+                <div id="host-controls-wordcloud" class="host-controls hidden">
+                    <button class="btn-host btn-back" id="btn-back-menu-wordcloud">Volver al menu</button>
+                    <button class="btn-host btn-close" id="btn-close-wordcloud">Cerrar nube</button>
+                </div>
+                <h1 class="question" id="wordcloud-title"></h1>
+                <div id="wordcloud-cloud" class="wordcloud-cloud"></div>
+                <div id="wordcloud-input-area" class="wordcloud-input">
+                    <input type="text" id="wordcloud-input" placeholder="" maxlength="30">
+                    <button id="wordcloud-submit" class="btn-reopen">Enviar</button>
+                </div>
+                <p id="wordcloud-remaining" class="wordcloud-remaining"></p>
+            </div>
+        </div>
+
+        <!-- Reacciones -->
+        <div id="reactions-screen" class="screen hidden">
+            <div class="card">
+                <div id="host-controls-reactions" class="host-controls hidden">
+                    <button class="btn-host btn-back" id="btn-back-menu-reactions">Volver al menu</button>
+                </div>
+                <h1 class="question" id="reactions-title"></h1>
+                <div id="reactions-stage" class="reactions-stage"></div>
+                <div id="reactions-buttons" class="reactions-buttons"></div>
+            </div>
+        </div>
+
+        <!-- Quiz -->
+        <div id="quiz-screen" class="screen hidden">
+            <div class="card">
+                <div id="host-controls-quiz" class="host-controls hidden">
+                    <button class="btn-host btn-back" id="btn-back-menu-quiz">Volver al menu</button>
+                    <button class="btn-host btn-close" id="btn-close-quiz">Cerrar quiz</button>
+                </div>
+                <div id="quiz-timer" class="quiz-timer hidden">
+                    <span id="quiz-timer-value">30</span>
+                </div>
+                <h1 class="question" id="quiz-question"></h1>
+                <div id="quiz-options" class="options"></div>
+                <button id="quiz-start" class="btn-host btn-reopen hidden">Iniciar Quiz</button>
+            </div>
+        </div>
+
+        <!-- Quiz Leaderboard -->
+        <div id="quiz-leaderboard-screen" class="screen hidden">
+            <div class="card">
+                <div id="host-controls-leaderboard" class="host-controls hidden">
+                    <button class="btn-host btn-back" id="btn-back-menu-leaderboard">Volver al menu</button>
+                </div>
+                <h2 class="results-title">Podio</h2>
+                <div id="quiz-podium" class="quiz-podium"></div>
+                <div id="quiz-ranking" class="quiz-ranking"></div>
+            </div>
+        </div>
+
+        <!-- Escala -->
+        <div id="scale-screen" class="screen hidden">
+            <div class="card">
+                <div id="host-controls-scale" class="host-controls hidden">
+                    <button class="btn-host btn-back" id="btn-back-menu-scale">Volver al menu</button>
+                    <button class="btn-host btn-close" id="btn-close-scale">Cerrar escala</button>
+                </div>
+                <h1 class="question" id="scale-title"></h1>
+                <div class="scale-container">
+                    <span id="scale-min-label" class="scale-label"></span>
+                    <input type="range" id="scale-slider" class="scale-slider">
+                    <span id="scale-max-label" class="scale-label"></span>
+                </div>
+                <div id="scale-value" class="scale-value">5</div>
+                <button id="scale-submit" class="option-btn scale-submit-btn">Enviar</button>
+            </div>
+        </div>
+
+        <!-- Resultados escala -->
+        <div id="scale-results-screen" class="screen hidden">
+            <div class="card">
+                <div id="host-controls-scale-results" class="host-controls hidden">
+                    <button class="btn-host btn-back" id="btn-back-menu-scale-results">Volver al menu</button>
+                    <button class="btn-host btn-reopen" id="btn-reopen-scale">Reabrir escala</button>
+                </div>
+                <h2 id="scale-results-title" class="results-title"></h2>
+                <div id="scale-average" class="scale-average"></div>
+                <div id="scale-distribution" class="results-chart"></div>
+                <p class="total-votes">Total: <span id="scale-total">0</span> respuestas</p>
+            </div>
+        </div>
+
         <!-- Estado de conexion -->
         <div id="status-bar" class="status-bar">
             <span id="status-text">Conectando con Zoom...</span>

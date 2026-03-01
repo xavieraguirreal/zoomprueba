@@ -57,6 +57,41 @@ define('APP_SECTIONS', json_encode([
             3 => ['label' => 'Ejercicios', 'emoji' => "\xE2\x9C\x8F\xEF\xB8\x8F", 'color' => '#f97316'],
         ],
     ],
+    'nube' => [
+        'title' => 'Describe el curso en una palabra',
+        'type' => 'wordcloud',
+        'icon' => "\xE2\x98\x81\xEF\xB8\x8F",
+        'placeholder' => 'Escribe una palabra...',
+        'max_words' => 3,
+    ],
+    'reacciones' => [
+        'title' => 'Reacciones en vivo',
+        'type' => 'reactions',
+        'icon' => "\xF0\x9F\x8E\x89",
+        'emojis' => ["\xF0\x9F\x94\xA5", "\xE2\x9D\xA4\xEF\xB8\x8F", "\xF0\x9F\x91\x8F", "\xF0\x9F\x98\x82", "\xF0\x9F\x8E\x89", "\xF0\x9F\x91\x8D"],
+    ],
+    'quiz1' => [
+        'title' => 'Que lenguaje se usa para logica web?',
+        'type' => 'quiz',
+        'icon' => "\xF0\x9F\xA7\xA0",
+        'time_limit' => 30,
+        'correct' => 2,
+        'options' => [
+            1 => ['label' => 'HTML',       'color' => '#ef4444'],
+            2 => ['label' => 'JavaScript', 'color' => '#22c55e'],
+            3 => ['label' => 'CSS',        'color' => '#3b82f6'],
+            4 => ['label' => 'Python',     'color' => '#eab308'],
+        ],
+    ],
+    'escala1' => [
+        'title' => 'Cuanto entendiste el tema?',
+        'type' => 'scale',
+        'icon' => "\xF0\x9F\x93\x8F",
+        'min' => 1,
+        'max' => 10,
+        'min_label' => 'Nada',
+        'max_label' => 'Todo',
+    ],
 ]));
 
 // =============================================
