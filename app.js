@@ -426,7 +426,7 @@
         var stagger = wordcloudRecentChanges > 3 ? 0.05 : 0.1;
 
         var placed = [];
-        var rotations = [-4, 0, 0, 2, 0, -2, 0, 0, 3, 0];
+        var rotations = [-15, 0, 90, 8, 0, -8, 0, 90, 12, 0, -12, 0, 0, 90, 5];
 
         for (var j = 0; j < sorted.length; j++) {
             var w = sorted[j];
@@ -440,9 +440,14 @@
             measure.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;font-weight:700;font-size:' + fontSize + 'rem;font-family:inherit;';
             measure.textContent = w.word;
             document.body.appendChild(measure);
-            var estW = measure.offsetWidth + 8;
-            var estH = measure.offsetHeight + 4;
+            var measW = measure.offsetWidth + 6;
+            var measH = measure.offsetHeight + 4;
             document.body.removeChild(measure);
+
+            // Swap width/height for vertical words
+            var isVertical = (rotate === 90);
+            var estW = isVertical ? measH : measW;
+            var estH = isVertical ? measW : measH;
 
             var span = document.createElement('span');
             span.className = 'wordcloud-word';
@@ -453,6 +458,10 @@
             span.style.setProperty('--rotate', rotate + 'deg');
             span.style.animationDuration = baseSpeed + 's';
             span.style.animationDelay = (j * stagger) + 's';
+
+            if (isVertical) {
+                span.style.transformOrigin = 'top left';
+            }
 
             var pos = placeWord(placed, cloudWidth, cloudHeight, estW, estH);
             span.style.left = pos.x + 'px';
