@@ -317,14 +317,22 @@
         }
 
         var inputArea = $('wordcloud-input-area');
+        var closeBtn = $('btn-close-wordcloud');
+        var reopenBtn = $('btn-reopen-wordcloud');
+
         if (status === 'closed') {
             inputArea.classList.add('hidden');
+            if (closeBtn) closeBtn.classList.add('hidden');
+            if (reopenBtn) reopenBtn.classList.remove('hidden');
         } else {
             inputArea.classList.remove('hidden');
+            if (closeBtn) closeBtn.classList.remove('hidden');
+            if (reopenBtn) reopenBtn.classList.add('hidden');
         }
 
         $('wordcloud-remaining').textContent = '';
         $('wordcloud-cloud').innerHTML = '<p style="color:#64748b;text-align:center;">Cargando...</p>';
+        wordcloudLastHash = ''; // reset to force render
 
         showScreen($wordcloudScreen);
         loadWordCloud(sectionId);
@@ -1162,8 +1170,19 @@
             } else if (section.type === 'scale') {
                 await loadScaleResults(state.currentSection);
             } else if (section.type === 'wordcloud') {
-                // Ocultar input, mantener nube
+                // Ocultar input, mostrar estado cerrado
                 $('wordcloud-input-area').classList.add('hidden');
+                $('wordcloud-remaining').textContent = '';
+                $('btn-close-wordcloud').classList.add('hidden');
+                $('btn-reopen-wordcloud').classList.remove('hidden');
+                // Agregar badge de cerrado
+                var badge = document.createElement('div');
+                badge.className = 'wordcloud-closed-badge';
+                badge.textContent = 'Nube cerrada - No se aceptan mas palabras';
+                var cloud = $('wordcloud-cloud');
+                if (!cloud.querySelector('.wordcloud-closed-badge')) {
+                    cloud.appendChild(badge);
+                }
             }
         } catch (err) {
             console.error('Error closing section:', err);
@@ -1344,8 +1363,16 @@
     $('btn-close-quiz').addEventListener('click', closeSection);
     $('btn-close-scale').addEventListener('click', closeSection);
 
-    // Host: reabrir scale
+    // Host: reabrir scale / wordcloud
     $('btn-reopen-scale').addEventListener('click', reopenSection);
+    $('btn-reopen-wordcloud').addEventListener('click', function () {
+        reopenSection();
+        $('btn-close-wordcloud').classList.remove('hidden');
+        $('btn-reopen-wordcloud').classList.add('hidden');
+        $('wordcloud-input-area').classList.remove('hidden');
+        var badge = document.querySelector('.wordcloud-closed-badge');
+        if (badge) badge.remove();
+    });
 
     // Participante: cambiar respuesta (survey)
     $('btn-change').addEventListener('click', function () {

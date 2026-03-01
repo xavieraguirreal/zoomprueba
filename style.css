@@ -434,6 +434,20 @@ body {
     color: #64748b;
 }
 
+.wordcloud-closed-badge {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(127, 29, 29, 0.9);
+    color: #fca5a5;
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
 /* ========================================
    Reactions
    ======================================== */
