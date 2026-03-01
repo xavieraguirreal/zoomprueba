@@ -1365,14 +1365,16 @@
 
     // Host: reabrir scale / wordcloud
     $('btn-reopen-scale').addEventListener('click', reopenSection);
-    $('btn-reopen-wordcloud').addEventListener('click', function () {
-        reopenSection();
-        $('btn-close-wordcloud').classList.remove('hidden');
-        $('btn-reopen-wordcloud').classList.add('hidden');
-        $('wordcloud-input-area').classList.remove('hidden');
-        var badge = document.querySelector('.wordcloud-closed-badge');
-        if (badge) badge.remove();
-    });
+    if ($('btn-reopen-wordcloud')) {
+        $('btn-reopen-wordcloud').addEventListener('click', function () {
+            reopenSection();
+            $('btn-close-wordcloud').classList.remove('hidden');
+            $('btn-reopen-wordcloud').classList.add('hidden');
+            $('wordcloud-input-area').classList.remove('hidden');
+            var badge = document.querySelector('.wordcloud-closed-badge');
+            if (badge) badge.remove();
+        });
+    }
 
     // Participante: cambiar respuesta (survey)
     $('btn-change').addEventListener('click', function () {
