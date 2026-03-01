@@ -426,7 +426,7 @@
         var stagger = wordcloudRecentChanges > 3 ? 0.05 : 0.1;
 
         var placed = [];
-        var rotations = [-15, 0, 90, 8, 0, -8, 0, 90, 12, 0, -12, 0, 0, 90, 5];
+        var rotations = [-8, 0, 0, 5, 90, 0, -5, 0, 0, 8, 0, 90, 0, 0, -6];
 
         for (var j = 0; j < sorted.length; j++) {
             var w = sorted[j];
@@ -444,10 +444,21 @@
             var measH = measure.offsetHeight + 4;
             document.body.removeChild(measure);
 
-            // Swap width/height for vertical words
+            // Adjust bounding box for rotated words
             var isVertical = (rotate === 90);
-            var estW = isVertical ? measH : measW;
-            var estH = isVertical ? measW : measH;
+            var absAngle = Math.abs(rotate) * Math.PI / 180;
+            var estW, estH;
+            if (isVertical) {
+                estW = measH + 4;
+                estH = measW + 4;
+            } else if (rotate !== 0) {
+                // Diagonal: expand bounding box to account for rotation
+                estW = Math.ceil(measW * Math.cos(absAngle) + measH * Math.sin(absAngle)) + 8;
+                estH = Math.ceil(measW * Math.sin(absAngle) + measH * Math.cos(absAngle)) + 8;
+            } else {
+                estW = measW;
+                estH = measH;
+            }
 
             var span = document.createElement('span');
             span.className = 'wordcloud-word';
