@@ -41,7 +41,7 @@ if ($method === 'POST') {
 }
 
 // Validar token para acciones admin (excepto login)
-if (str_starts_with($action, 'admin_') && $action !== 'admin_login') {
+if (substr($action, 0, 6) === 'admin_' && $action !== 'admin_login') {
     $adminToken = $_SERVER['HTTP_X_ADMIN_TOKEN'] ?? '';
     if (!validateAdminToken($adminToken)) {
         jsonResponse(['error' => 'Token invalido o expirado'], 401);
