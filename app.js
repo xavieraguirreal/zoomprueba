@@ -390,6 +390,12 @@
         wordcloudPrevWords = currentWords;
         wordcloudLastHash = hash;
 
+        // Update word count
+        var totalWords = 0;
+        for (var tw = 0; tw < words.length; tw++) totalWords += parseInt(words[tw].count);
+        var countEl = $('wordcloud-count');
+        if (countEl) countEl.textContent = totalWords + ' palabra' + (totalWords !== 1 ? 's' : '');
+
         var cloud = $('wordcloud-cloud');
         cloud.innerHTML = '';
 
