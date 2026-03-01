@@ -365,10 +365,13 @@
         return h;
     }
 
+    var wordcloudForceRender = false; // set true on submit to force re-layout
+
     function renderWordCloudWords(words) {
-        // Only re-render if words actually changed
+        // On polling: skip if nothing changed. On submit: always re-render.
         var hash = wordcloudHash(words);
-        if (hash === wordcloudLastHash) return;
+        if (hash === wordcloudLastHash && !wordcloudForceRender) return;
+        wordcloudForceRender = false;
 
         // Count how many new words vs previous render
         var newCount = 0;
@@ -426,7 +429,13 @@
         var stagger = wordcloudRecentChanges > 3 ? 0.05 : 0.1;
 
         var placed = [];
-        var rotations = [-8, 0, 0, 5, 90, 0, -5, 0, 0, 8, 0, 90, 0, 0, -6];
+        // Shuffle rotations each render so positions vary
+        var rotationPool = [-8, 0, 0, 5, 90, 0, -5, 0, 0, 8, 0, 90, 0, 0, -6];
+        var rotations = rotationPool.slice();
+        for (var sh = rotations.length - 1; sh > 0; sh--) {
+            var ri = Math.floor(Math.random() * (sh + 1));
+            var tmp = rotations[sh]; rotations[sh] = rotations[ri]; rotations[ri] = tmp;
+        }
 
         for (var j = 0; j < sorted.length; j++) {
             var w = sorted[j];
@@ -449,15 +458,15 @@
             var absAngle = Math.abs(rotate) * Math.PI / 180;
             var estW, estH;
             if (isVertical) {
-                estW = measH + 4;
-                estH = measW + 4;
+                estW = measH + 8;
+                estH = measW + 8;
             } else if (rotate !== 0) {
                 // Diagonal: expand bounding box to account for rotation
-                estW = Math.ceil(measW * Math.cos(absAngle) + measH * Math.sin(absAngle)) + 8;
-                estH = Math.ceil(measW * Math.sin(absAngle) + measH * Math.cos(absAngle)) + 8;
+                estW = Math.ceil(measW * Math.cos(absAngle) + measH * Math.sin(absAngle)) + 12;
+                estH = Math.ceil(measW * Math.sin(absAngle) + measH * Math.cos(absAngle)) + 12;
             } else {
-                estW = measW;
-                estH = measH;
+                estW = measW + 2;
+                estH = measH + 2;
             }
 
             var span = document.createElement('span');
@@ -486,7 +495,8 @@
     function placeWord(placed, cloudW, cloudH, estW, estH) {
         var cx = (cloudW - estW) / 2;
         var cy = (cloudH - estH) / 2;
-        var angle = 0;
+        // Random starting angle so every render produces a different layout
+        var angle = Math.random() * Math.PI * 2;
         var radius = 0;
 
         for (var i = 0; i < 400; i++) {
@@ -517,7 +527,7 @@
     }
 
     function hasCollision(placed, x, y, w, h) {
-        var pad = 3;
+        var pad = 6;
         for (var p = 0; p < placed.length; p++) {
             var r = placed[p];
             if (x < r.x + r.w + pad &&
@@ -563,6 +573,7 @@
                 if (remaining <= 0) {
                     $('wordcloud-input-area').classList.add('hidden');
                 }
+                wordcloudForceRender = true; // force full re-layout on submit
                 renderWordCloudWords(data.words || []);
             } else {
                 alert(data.error || 'Error');
@@ -1312,6 +1323,11 @@
 
             // Tipo-especifico
             if (sectionType === 'wordcloud' && data.words) {
+                // Force re-layout if words changed (new submissions from others)
+                var pollHash = wordcloudHash(data.words);
+                if (pollHash !== wordcloudLastHash) {
+                    wordcloudForceRender = true;
+                }
                 renderWordCloudWords(data.words);
                 if (data.status === 'closed') {
                     $('wordcloud-input-area').classList.add('hidden');
