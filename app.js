@@ -415,12 +415,11 @@
         // Sort by count descending
         var sorted = words.slice().sort(function (a, b) { return b.count - a.count; });
 
-        // Auto-scale: shrink all words when there are many so they fit
+        // Auto-scale: gentle shrink when many words
         var scale = 1;
-        if (sorted.length > 6) scale = 0.9;
-        if (sorted.length > 10) scale = 0.75;
-        if (sorted.length > 16) scale = 0.6;
-        if (sorted.length > 24) scale = 0.5;
+        if (sorted.length > 12) scale = 0.9;
+        if (sorted.length > 20) scale = 0.8;
+        if (sorted.length > 30) scale = 0.7;
 
         // Animation speed
         var baseSpeed = wordcloudRecentChanges > 3 ? 0.4 : wordcloudRecentChanges > 1 ? 0.7 : 1.2;
@@ -432,7 +431,7 @@
         for (var j = 0; j < sorted.length; j++) {
             var w = sorted[j];
             var ratio = parseInt(w.count) / maxCount;
-            var fontSize = Math.max(0.65, (0.8 + ratio * 1.8) * scale);
+            var fontSize = Math.max(0.75, (0.9 + ratio * 2.2) * scale);
             var color = wordcloudColors[j % wordcloudColors.length];
             var rotate = rotations[j % rotations.length];
 
@@ -498,7 +497,7 @@
     }
 
     function hasCollision(placed, x, y, w, h) {
-        var pad = 5;
+        var pad = 3;
         for (var p = 0; p < placed.length; p++) {
             var r = placed[p];
             if (x < r.x + r.w + pad &&
