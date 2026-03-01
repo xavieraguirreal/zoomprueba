@@ -11,7 +11,8 @@
  * GET  action=results&meeting_id=X&section_id=Y → resultados + estado
  * GET  action=poll&meeting_id=X                 → participante consulta estado
  * POST action=submit_word {meeting_id, section_id, user_id, word}  → guardar palabra (wordcloud)
- * GET  action=get_words&meeting_id=X&section_id=Y → palabras con frecuencia
+ * GET  action=get_words&meeting_id=X&section_id=Y → palabras con frecuencia (ronda actual)
+ * POST action=new_wordcloud {meeting_id}          → host crea nueva nube (incrementa ronda)
  * POST action=send_reaction {meeting_id, emoji, user_id}           → guardar reaccion
  * GET  action=get_reactions&meeting_id=X&since=T → reacciones recientes
  * POST action=start_quiz {meeting_id}           → host inicia quiz timer
@@ -240,7 +241,15 @@ try {
 
             // Datos extra segun tipo de seccion
             if ($sectionType === 'wordcloud') {
-                $response['words'] = getWordFrequencies($pdo, $meetingId, $row['section_id']);
+                // Obtener ronda actual
+                $wcRoundStmt = $pdo->prepare(
+                    "SELECT wordcloud_round FROM meeting_active_section WHERE meeting_id = ?"
+                );
+                $wcRoundStmt->execute([$meetingId]);
+                $wcRoundRow = $wcRoundStmt->fetch();
+                $wcRound = $wcRoundRow ? (int) $wcRoundRow['wordcloud_round'] : 1;
+                $response['round'] = $wcRound;
+                $response['words'] = getWordFrequencies($pdo, $meetingId, $row['section_id'], $wcRound);
             } elseif ($sectionType === 'reactions') {
                 $since = date('Y-m-d H:i:s', time() - 10);
                 $response['reactions'] = getRecentReactions($pdo, $meetingId, $since);
@@ -296,12 +305,20 @@ try {
             // Sanitizar: solo una palabra, max 30 chars
             $word = mb_substr($word, 0, 30);
 
-            // Verificar limite de palabras por usuario
+            // Obtener ronda actual
+            $roundStmt = $pdo->prepare(
+                "SELECT wordcloud_round FROM meeting_active_section WHERE meeting_id = ?"
+            );
+            $roundStmt->execute([$meetingId]);
+            $roundRow = $roundStmt->fetch();
+            $currentRound = $roundRow ? (int) $roundRow['wordcloud_round'] : 1;
+
+            // Verificar limite de palabras por usuario EN ESTA RONDA
             $maxWords = $sections[$sectionId]['max_words'] ?? 3;
             $countStmt = $pdo->prepare(
-                "SELECT COUNT(*) FROM wordcloud_entries WHERE meeting_id = ? AND section_id = ? AND user_id = ?"
+                "SELECT COUNT(*) FROM wordcloud_entries WHERE meeting_id = ? AND section_id = ? AND user_id = ? AND round = ?"
             );
-            $countStmt->execute([$meetingId, $sectionId, $userId]);
+            $countStmt->execute([$meetingId, $sectionId, $userId, $currentRound]);
             $wordCount = (int) $countStmt->fetchColumn();
 
             if ($wordCount >= $maxWords) {
@@ -309,23 +326,52 @@ try {
             }
 
             $stmt = $pdo->prepare(
-                "INSERT INTO wordcloud_entries (meeting_id, section_id, user_id, word) VALUES (?, ?, ?, ?)"
+                "INSERT INTO wordcloud_entries (meeting_id, section_id, user_id, word, round) VALUES (?, ?, ?, ?, ?)"
             );
-            $stmt->execute([$meetingId, $sectionId, $userId, $word]);
+            $stmt->execute([$meetingId, $sectionId, $userId, $word, $currentRound]);
 
-            $words = getWordFrequencies($pdo, $meetingId, $sectionId);
+            $words = getWordFrequencies($pdo, $meetingId, $sectionId, $currentRound);
             jsonResponse(['success' => true, 'words' => $words]);
             break;
 
-        // ---- Word Cloud: obtener palabras con frecuencia ----
+        // ---- Word Cloud: obtener palabras con frecuencia (ronda actual) ----
         case 'get_words':
             $meetingId = $_GET['meeting_id'] ?? '';
             $sectionId = $_GET['section_id'] ?? '';
             if (!$meetingId || !$sectionId) {
                 jsonResponse(['error' => 'Faltan meeting_id o section_id'], 400);
             }
-            $words = getWordFrequencies($pdo, $meetingId, $sectionId);
-            jsonResponse(['words' => $words]);
+            // Obtener ronda actual
+            $roundStmt = $pdo->prepare(
+                "SELECT wordcloud_round FROM meeting_active_section WHERE meeting_id = ?"
+            );
+            $roundStmt->execute([$meetingId]);
+            $roundRow = $roundStmt->fetch();
+            $currentRound = $roundRow ? (int) $roundRow['wordcloud_round'] : 1;
+            $words = getWordFrequencies($pdo, $meetingId, $sectionId, $currentRound);
+            jsonResponse(['words' => $words, 'round' => $currentRound]);
+            break;
+
+        // ---- Word Cloud: nueva nube (incrementar ronda) ----
+        case 'new_wordcloud':
+            $meetingId = $input['meeting_id'] ?? '';
+            if (!$meetingId) {
+                jsonResponse(['error' => 'Falta meeting_id'], 400);
+            }
+            $stmt = $pdo->prepare(
+                "UPDATE meeting_active_section SET wordcloud_round = wordcloud_round + 1, status = 'voting' WHERE meeting_id = ?"
+            );
+            $stmt->execute([$meetingId]);
+
+            // Obtener ronda actual
+            $roundStmt = $pdo->prepare(
+                "SELECT wordcloud_round FROM meeting_active_section WHERE meeting_id = ?"
+            );
+            $roundStmt->execute([$meetingId]);
+            $roundRow = $roundStmt->fetch();
+            $currentRound = $roundRow ? (int) $roundRow['wordcloud_round'] : 1;
+
+            jsonResponse(['success' => true, 'round' => $currentRound]);
             break;
 
         // ---- Reactions: enviar reaccion ----
@@ -462,11 +508,18 @@ function getResults(PDO $pdo, string $meetingId, string $sectionId): array {
 /**
  * Obtener palabras con frecuencia para wordcloud
  */
-function getWordFrequencies(PDO $pdo, string $meetingId, string $sectionId): array {
-    $stmt = $pdo->prepare(
-        "SELECT LOWER(word) as word, COUNT(*) as count FROM wordcloud_entries WHERE meeting_id = ? AND section_id = ? GROUP BY LOWER(word) ORDER BY count DESC"
-    );
-    $stmt->execute([$meetingId, $sectionId]);
+function getWordFrequencies(PDO $pdo, string $meetingId, string $sectionId, int $round = 0): array {
+    if ($round > 0) {
+        $stmt = $pdo->prepare(
+            "SELECT LOWER(word) as word, COUNT(*) as count FROM wordcloud_entries WHERE meeting_id = ? AND section_id = ? AND round = ? GROUP BY LOWER(word) ORDER BY count DESC"
+        );
+        $stmt->execute([$meetingId, $sectionId, $round]);
+    } else {
+        $stmt = $pdo->prepare(
+            "SELECT LOWER(word) as word, COUNT(*) as count FROM wordcloud_entries WHERE meeting_id = ? AND section_id = ? GROUP BY LOWER(word) ORDER BY count DESC"
+        );
+        $stmt->execute([$meetingId, $sectionId]);
+    }
     return $stmt->fetchAll();
 }
 

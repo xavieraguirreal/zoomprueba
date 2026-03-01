@@ -92,7 +92,9 @@ $version = time(); // cache-bust dinamico
                     <button class="btn-host btn-back" id="btn-back-menu-wordcloud">Volver al menu</button>
                     <button class="btn-host btn-close" id="btn-close-wordcloud">Cerrar nube</button>
                     <button class="btn-host btn-reopen hidden" id="btn-reopen-wordcloud">Reabrir nube</button>
+                    <button class="btn-host btn-new" id="btn-new-wordcloud">Nueva nube</button>
                 </div>
+                <div id="wordcloud-round-badge" class="wordcloud-round-badge hidden">Nube #1</div>
                 <h1 id="wordcloud-title"></h1>
                 <div id="wordcloud-cloud" class="wordcloud-cloud"></div>
                 <div id="wordcloud-input-area" class="wordcloud-input">

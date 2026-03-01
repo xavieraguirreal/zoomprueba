@@ -163,6 +163,30 @@ body {
     color: #f0fdf4;
 }
 
+.btn-new {
+    background: #1e3a5f;
+    color: #7dd3fc;
+    border-color: #1d4ed8;
+}
+
+.btn-new:hover {
+    background: #1d4ed8;
+    color: #fff;
+}
+
+.wordcloud-round-badge {
+    text-align: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #7dd3fc;
+    background: rgba(29, 78, 216, 0.2);
+    padding: 3px 12px;
+    border-radius: 12px;
+    display: inline-block;
+    margin: 0 auto 4px;
+    width: fit-content;
+}
+
 /* ---- Question ---- */
 .question {
     font-size: 1.5rem;
