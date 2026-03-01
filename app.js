@@ -275,7 +275,7 @@
         }
 
         var hostControls = $('host-controls');
-        if (state.isHost) {
+        if (state.isHost && state.isInZoom) {
             hostControls.classList.remove('hidden');
         } else {
             hostControls.classList.add('hidden');
@@ -292,7 +292,7 @@
         $('greeting-text').textContent = section.content || '';
 
         var hostControls = $('host-controls-greeting');
-        if (state.isHost) {
+        if (state.isHost && state.isInZoom) {
             hostControls.classList.remove('hidden');
         } else {
             hostControls.classList.add('hidden');
@@ -370,7 +370,7 @@
         $('wordcloud-input').value = '';
 
         var hostControls = $('host-controls-wordcloud');
-        if (state.isHost) {
+        if (state.isHost && state.isInZoom) {
             hostControls.classList.remove('hidden');
         } else {
             hostControls.classList.add('hidden');
@@ -696,7 +696,7 @@
         $('reactions-title').textContent = section.title;
 
         var hostControls = $('host-controls-reactions');
-        if (state.isHost) {
+        if (state.isHost && state.isInZoom) {
             hostControls.classList.remove('hidden');
         } else {
             hostControls.classList.add('hidden');
@@ -802,7 +802,7 @@
         $('quiz-question').textContent = section.title;
 
         var hostControls = $('host-controls-quiz');
-        if (state.isHost) {
+        if (state.isHost && state.isInZoom) {
             hostControls.classList.remove('hidden');
         } else {
             hostControls.classList.add('hidden');
@@ -829,7 +829,7 @@
         // Si no ha iniciado (started_at es null)
         if (!startedAt) {
             // Host ve boton iniciar
-            if (state.isHost) {
+            if (state.isHost && state.isInZoom) {
                 startBtn.classList.remove('hidden');
             } else {
                 // Participante espera
@@ -994,7 +994,7 @@
         stopQuizTimer();
 
         var hostControls = $('host-controls-leaderboard');
-        if (state.isHost) {
+        if (state.isHost && state.isInZoom) {
             hostControls.classList.remove('hidden');
         } else {
             hostControls.classList.add('hidden');
@@ -1066,7 +1066,7 @@
         $('scale-max-label').textContent = (section.max_label || maxVal) + ' (' + maxVal + ')';
 
         var hostControls = $('host-controls-scale');
-        if (state.isHost) {
+        if (state.isHost && state.isInZoom) {
             hostControls.classList.remove('hidden');
         } else {
             hostControls.classList.add('hidden');
@@ -1176,7 +1176,7 @@
         $('scale-total').textContent = results.total || 0;
 
         var hostControls = $('host-controls-scale-results');
-        if (state.isHost) {
+        if (state.isHost && state.isInZoom) {
             hostControls.classList.remove('hidden');
         } else {
             hostControls.classList.add('hidden');
@@ -1275,7 +1275,7 @@
         }
 
         var hostControls = $('host-controls-results');
-        if (state.isHost) {
+        if (state.isHost && state.isInZoom) {
             hostControls.classList.remove('hidden');
             $('btn-change').classList.add('hidden');
         } else {
