@@ -470,7 +470,7 @@
             }
 
             var span = document.createElement('span');
-            span.className = 'wordcloud-word';
+            span.className = 'wordcloud-word' + (j === 0 ? ' wordcloud-word-top' : '');
             span.setAttribute('data-word', w.word);
             span.textContent = w.word;
             span.style.fontSize = fontSize + 'rem';
