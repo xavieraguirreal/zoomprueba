@@ -4,6 +4,13 @@
  *
  * GET  action=sections                          → lista secciones desde config
  * GET  action=get_active&meeting_id=X           → seccion activa + estado
+ *
+ * --- Admin (POST con X-Admin-Token header) ---
+ * POST action=admin_login    {password}         → valida password, devuelve token
+ * POST action=admin_sections                    → lista todas las secciones (con IDs)
+ * POST action=admin_save     {section data}     → crear o actualizar seccion
+ * POST action=admin_delete   {id}               → eliminar seccion
+ * POST action=admin_reorder  {order: [id,...]}  → guardar nuevo orden
  * POST action=set_active  {meeting_id, section_id} → host establece seccion activa
  * POST action=close       {meeting_id}          → host cierra encuesta
  * POST action=reopen      {meeting_id}          → host reabre encuesta
@@ -33,6 +40,14 @@ if ($method === 'POST') {
     $action = $input['action'] ?? '';
 }
 
+// Validar token para acciones admin (excepto login)
+if (str_starts_with($action, 'admin_') && $action !== 'admin_login') {
+    $adminToken = $_SERVER['HTTP_X_ADMIN_TOKEN'] ?? '';
+    if (!validateAdminToken($adminToken)) {
+        jsonResponse(['error' => 'Token invalido o expirado'], 401);
+    }
+}
+
 try {
     $pdo = getDB();
 
@@ -40,7 +55,7 @@ try {
 
         // ---- Lista de secciones (desde config) ----
         case 'sections':
-            jsonResponse(['sections' => json_decode(APP_SECTIONS, true)]);
+            jsonResponse(['sections' => getSections()]);
             break;
 
         // ---- Obtener seccion activa de un meeting ----
@@ -62,7 +77,7 @@ try {
                     'status' => $row['status'],
                 ];
                 // Incluir started_at y time_limit para quiz
-                $sections = json_decode(APP_SECTIONS, true);
+                $sections = getSections();
                 $sType = isset($sections[$row['section_id']]) ? $sections[$row['section_id']]['type'] : '';
                 if ($sType === 'quiz') {
                     $response['started_at'] = $row['started_at'];
@@ -81,7 +96,7 @@ try {
             if (!$meetingId || !$sectionId) {
                 jsonResponse(['error' => 'Faltan meeting_id o section_id'], 400);
             }
-            $sections = json_decode(APP_SECTIONS, true);
+            $sections = getSections();
             if (!isset($sections[$sectionId])) {
                 jsonResponse(['error' => 'Seccion no valida'], 400);
             }
@@ -133,7 +148,7 @@ try {
             }
 
             // Validar que la seccion existe y es tipo survey o scale
-            $sections = json_decode(APP_SECTIONS, true);
+            $sections = getSections();
             $sectionType = $sections[$sectionId]['type'] ?? '';
             if (!isset($sections[$sectionId]) || !in_array($sectionType, ['survey', 'scale'])) {
                 jsonResponse(['error' => 'Seccion no valida para votar'], 400);
@@ -237,7 +252,7 @@ try {
                 'status' => $row['status'],
             ];
 
-            $sections = json_decode(APP_SECTIONS, true);
+            $sections = getSections();
             $sectionType = isset($sections[$row['section_id']]) ? $sections[$row['section_id']]['type'] : '';
 
             // Datos extra segun tipo de seccion
@@ -288,7 +303,7 @@ try {
                 jsonResponse(['error' => 'Faltan meeting_id, section_id o word'], 400);
             }
 
-            $sections = json_decode(APP_SECTIONS, true);
+            $sections = getSections();
             if (!isset($sections[$sectionId]) || $sections[$sectionId]['type'] !== 'wordcloud') {
                 jsonResponse(['error' => 'Seccion no valida para wordcloud'], 400);
             }
@@ -442,7 +457,7 @@ try {
                 jsonResponse(['error' => 'Faltan datos del quiz'], 400);
             }
 
-            $sections = json_decode(APP_SECTIONS, true);
+            $sections = getSections();
             if (!isset($sections[$sectionId]) || $sections[$sectionId]['type'] !== 'quiz') {
                 jsonResponse(['error' => 'Seccion no valida para quiz'], 400);
             }
@@ -474,6 +489,157 @@ try {
             jsonResponse(['results' => $quizResults]);
             break;
 
+        // =============================================
+        // ADMIN ACTIONS
+        // =============================================
+
+        // ---- Admin: login ----
+        case 'admin_login':
+            $password = $input['password'] ?? '';
+            if ($password !== ADMIN_PASSWORD) {
+                jsonResponse(['error' => 'Contraseña incorrecta'], 401);
+            }
+            $token = hash('sha256', ADMIN_PASSWORD . date('Y-m-d') . ZOOM_CLIENT_SECRET);
+            jsonResponse(['success' => true, 'token' => $token]);
+            break;
+
+        // ---- Admin: listar secciones ----
+        case 'admin_sections':
+            $stmt = $pdo->query(
+                "SELECT * FROM app_sections ORDER BY sort_order ASC"
+            );
+            $rows = $stmt->fetchAll();
+            $result = [];
+            foreach ($rows as $row) {
+                $row['config'] = json_decode($row['config'], true);
+                $result[] = $row;
+            }
+            jsonResponse(['sections' => $result]);
+            break;
+
+        // ---- Admin: crear o actualizar seccion ----
+        case 'admin_save':
+            $id         = isset($input['id']) ? (int) $input['id'] : null;
+            $sectionKey = trim($input['section_key'] ?? '');
+            $title      = trim($input['title'] ?? '');
+            $type       = $input['type'] ?? '';
+            $icon       = $input['icon'] ?? '';
+            $isActive   = isset($input['is_active']) ? (int) $input['is_active'] : 1;
+            $config     = $input['config'] ?? [];
+
+            // Validar campos comunes
+            if (!preg_match('/^[a-z0-9_]{1,50}$/', $sectionKey)) {
+                jsonResponse(['error' => 'Clave invalida: solo letras minusculas, numeros y _'], 400);
+            }
+            if ($title === '') {
+                jsonResponse(['error' => 'El titulo es obligatorio'], 400);
+            }
+            $validTypes = ['survey', 'greeting', 'wordcloud', 'reactions', 'quiz', 'scale'];
+            if (!in_array($type, $validTypes)) {
+                jsonResponse(['error' => 'Tipo invalido'], 400);
+            }
+
+            // Validaciones por tipo
+            switch ($type) {
+                case 'survey':
+                    $opts = $config['options'] ?? [];
+                    if (count($opts) < 2) {
+                        jsonResponse(['error' => 'La encuesta necesita minimo 2 opciones'], 400);
+                    }
+                    foreach ($opts as $opt) {
+                        if (empty(trim($opt['label'] ?? ''))) {
+                            jsonResponse(['error' => 'Cada opcion necesita un texto'], 400);
+                        }
+                    }
+                    break;
+                case 'greeting':
+                    if (empty(trim($config['content'] ?? ''))) {
+                        jsonResponse(['error' => 'El contenido del saludo es obligatorio'], 400);
+                    }
+                    break;
+                case 'wordcloud':
+                    // Defaults are fine
+                    $config['placeholder'] = $config['placeholder'] ?? 'Escribe una palabra...';
+                    $config['max_words'] = (int) ($config['max_words'] ?? 3);
+                    break;
+                case 'reactions':
+                    $emojis = $config['emojis'] ?? [];
+                    if (count($emojis) < 1) {
+                        jsonResponse(['error' => 'Se necesita minimo 1 emoji'], 400);
+                    }
+                    break;
+                case 'quiz':
+                    $opts = $config['options'] ?? [];
+                    if (count($opts) < 2) {
+                        jsonResponse(['error' => 'El quiz necesita minimo 2 opciones'], 400);
+                    }
+                    $correct = (int) ($config['correct'] ?? 0);
+                    if ($correct < 1 || $correct > count($opts)) {
+                        jsonResponse(['error' => 'La respuesta correcta no apunta a una opcion valida'], 400);
+                    }
+                    $config['time_limit'] = (int) ($config['time_limit'] ?? 30);
+                    $config['correct'] = $correct;
+                    break;
+                case 'scale':
+                    $min = (int) ($config['min'] ?? 1);
+                    $max = (int) ($config['max'] ?? 10);
+                    if ($min >= $max) {
+                        jsonResponse(['error' => 'El minimo debe ser menor que el maximo'], 400);
+                    }
+                    $config['min'] = $min;
+                    $config['max'] = $max;
+                    $config['min_label'] = $config['min_label'] ?? '';
+                    $config['max_label'] = $config['max_label'] ?? '';
+                    break;
+            }
+
+            $configJson = json_encode($config, JSON_UNESCAPED_UNICODE);
+
+            if ($id) {
+                // Update
+                $stmt = $pdo->prepare(
+                    "UPDATE app_sections SET section_key = ?, title = ?, type = ?, icon = ?, config = ?, is_active = ?
+                     WHERE id = ?"
+                );
+                $stmt->execute([$sectionKey, $title, $type, $icon, $configJson, $isActive, $id]);
+            } else {
+                // Insert — assign next sort_order
+                $maxOrder = (int) $pdo->query("SELECT COALESCE(MAX(sort_order), -1) FROM app_sections")->fetchColumn();
+                $stmt = $pdo->prepare(
+                    "INSERT INTO app_sections (section_key, title, type, icon, config, sort_order, is_active)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)"
+                );
+                $stmt->execute([$sectionKey, $title, $type, $icon, $configJson, $maxOrder + 1, $isActive]);
+                $id = (int) $pdo->lastInsertId();
+            }
+
+            jsonResponse(['success' => true, 'id' => $id]);
+            break;
+
+        // ---- Admin: eliminar seccion ----
+        case 'admin_delete':
+            $id = (int) ($input['id'] ?? 0);
+            if (!$id) {
+                jsonResponse(['error' => 'Falta id'], 400);
+            }
+            $stmt = $pdo->prepare("DELETE FROM app_sections WHERE id = ?");
+            $stmt->execute([$id]);
+            jsonResponse(['success' => true]);
+            break;
+
+        // ---- Admin: reordenar secciones ----
+        case 'admin_reorder':
+            $order = $input['order'] ?? [];
+            if (!is_array($order) || empty($order)) {
+                jsonResponse(['error' => 'Falta order (array de IDs)'], 400);
+            }
+            $stmt = $pdo->prepare("UPDATE app_sections SET sort_order = ? WHERE id = ?");
+            foreach ($order as $i => $id) {
+                $stmt->execute([$i, (int) $id]);
+            }
+            jsonResponse(['success' => true]);
+            break;
+
         default:
             jsonResponse(['error' => 'Accion no valida: ' . $action], 400);
             break;
@@ -487,7 +653,7 @@ try {
  * Obtener resultados de una encuesta para un meeting y seccion
  */
 function getResults(PDO $pdo, string $meetingId, string $sectionId): array {
-    $sections = json_decode(APP_SECTIONS, true);
+    $sections = getSections();
     $optionCount = isset($sections[$sectionId]['options']) ? count($sections[$sectionId]['options']) : 0;
 
     $stmt = $pdo->prepare(
@@ -551,7 +717,7 @@ function getRecentReactions(PDO $pdo, string $meetingId, string $since): array {
  * Obtener resultados del quiz con leaderboard
  */
 function getQuizResults(PDO $pdo, string $meetingId, string $sectionId): array {
-    $sections = json_decode(APP_SECTIONS, true);
+    $sections = getSections();
     $correct = $sections[$sectionId]['correct'] ?? 0;
     $timeLimit = $sections[$sectionId]['time_limit'] ?? 30;
 

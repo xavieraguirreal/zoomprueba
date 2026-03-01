@@ -95,6 +95,11 @@ define('APP_SECTIONS', json_encode([
 ]));
 
 // =============================================
+// ADMIN PANEL
+// =============================================
+define('ADMIN_PASSWORD', 'tu_password_admin');
+
+// =============================================
 // FUNCIONES AUXILIARES
 // =============================================
 
@@ -109,6 +114,53 @@ function getDB(): PDO {
         ]);
     }
     return $pdo;
+}
+
+/**
+ * Obtener secciones desde DB (con fallback a APP_SECTIONS config)
+ */
+function getSections(): array {
+    static $cache = null;
+    if ($cache !== null) {
+        return $cache;
+    }
+
+    try {
+        $pdo = getDB();
+        $stmt = $pdo->query(
+            "SELECT * FROM app_sections WHERE is_active = 1 ORDER BY sort_order ASC"
+        );
+        $rows = $stmt->fetchAll();
+
+        if (!empty($rows)) {
+            $sections = [];
+            foreach ($rows as $row) {
+                $section = [
+                    'title' => $row['title'],
+                    'type'  => $row['type'],
+                    'icon'  => $row['icon'],
+                ];
+                $config = json_decode($row['config'], true) ?: [];
+                $section = array_merge($section, $config);
+                $sections[$row['section_key']] = $section;
+            }
+            $cache = $sections;
+            return $sections;
+        }
+    } catch (Exception $e) {
+        // Table doesn't exist or DB error — fall back to config
+    }
+
+    $cache = json_decode(APP_SECTIONS, true);
+    return $cache;
+}
+
+/**
+ * Validar token de administrador (valido por el dia actual)
+ */
+function validateAdminToken(string $token): bool {
+    $expected = hash('sha256', ADMIN_PASSWORD . date('Y-m-d') . ZOOM_CLIENT_SECRET);
+    return hash_equals($expected, $token);
 }
 
 function sendSecurityHeaders(): void {
