@@ -1,58 +1,119 @@
-const API = 'api.php';
-const TYPE_LABELS = {
+var API = 'api.php';
+var TYPE_LABELS = {
     survey: 'Encuesta', greeting: 'Saludo', wordcloud: 'Nube de palabras',
     reactions: 'Reacciones', quiz: 'Quiz', scale: 'Escala'
 };
-const DEFAULT_COLORS = ['#ef4444','#22c55e','#3b82f6','#eab308','#8b5cf6','#06b6d4','#f97316','#ec4899'];
+var DEFAULT_COLORS = ['#ef4444','#22c55e','#3b82f6','#eab308','#8b5cf6','#06b6d4','#f97316','#ec4899'];
 
-let token = sessionStorage.getItem('admin_token');
-let sections = [];
-let editingId = null;  // null = create, number = edit
-let deletingId = null;
+var token = sessionStorage.getItem('admin_token');
+var sections = [];
+var editingId = null;
+var deletingId = null;
 
-// ---- Init ----
+// ---- Bind all events ----
+document.getElementById('btn-login').addEventListener('click', login);
+document.getElementById('login-password').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') login();
+});
+document.getElementById('btn-create').addEventListener('click', openCreateModal);
+document.getElementById('btn-logout').addEventListener('click', logout);
+document.getElementById('section-form').addEventListener('submit', saveSection);
+document.getElementById('f-title').addEventListener('input', onTitleInput);
+document.getElementById('f-type').addEventListener('change', function() { renderTypeFields(); });
+document.getElementById('btn-cancel-edit').addEventListener('click', closeModal);
+document.getElementById('btn-cancel-delete').addEventListener('click', closeDeleteModal);
+document.getElementById('btn-confirm-delete').addEventListener('click', confirmDelete);
+
+// Close modals on overlay click
+document.getElementById('modal-editor').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+document.getElementById('modal-delete').addEventListener('click', function(e) {
+    if (e.target === this) closeDeleteModal();
+});
+
+// Event delegation for dynamic buttons in table and forms
+document.addEventListener('click', function(e) {
+    var target = e.target;
+    // Edit button
+    if (target.closest('.btn-edit')) {
+        var id = parseInt(target.closest('.btn-edit').getAttribute('data-id'));
+        openEditModal(id);
+        return;
+    }
+    // Delete button
+    if (target.closest('.btn-del')) {
+        var id = parseInt(target.closest('.btn-del').getAttribute('data-id'));
+        openDeleteModal(id);
+        return;
+    }
+    // Remove option
+    if (target.closest('.btn-remove-option')) {
+        removeOption(target.closest('.btn-remove-option'));
+        return;
+    }
+    // Remove emoji
+    if (target.closest('.btn-remove-emoji')) {
+        target.closest('.emoji-tag').remove();
+        return;
+    }
+    // Add survey option
+    if (target.closest('#btn-add-survey-opt')) {
+        addSurveyOption();
+        return;
+    }
+    // Add quiz option
+    if (target.closest('#btn-add-quiz-opt')) {
+        addQuizOption();
+        return;
+    }
+    // Add emoji
+    if (target.closest('#btn-add-emoji')) {
+        addEmoji();
+        return;
+    }
+});
+
+// Init
 if (token) {
     showDashboard();
-} else {
-    document.getElementById('login-password').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') login();
-    });
 }
 
 // ---- API helper ----
-async function api(action, body) {
+function api(action, body) {
     body = body || {};
-    var res = await fetch(API, {
+    return fetch(API, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'X-Admin-Token': token || ''
         },
         body: JSON.stringify(Object.assign({ action: action }, body))
+    }).then(function(res) {
+        return res.json().then(function(data) {
+            if (res.status === 401 && action !== 'admin_login') {
+                toast('Sesion expirada', true);
+                logout();
+                throw new Error('Unauthorized');
+            }
+            if (!res.ok) throw new Error(data.error || 'Error desconocido');
+            return data;
+        });
     });
-    var data = await res.json();
-    if (res.status === 401 && action !== 'admin_login') {
-        toast('Sesion expirada', true);
-        logout();
-        throw new Error('Unauthorized');
-    }
-    if (!res.ok) throw new Error(data.error || 'Error desconocido');
-    return data;
 }
 
 // ---- Login / Logout ----
-async function login() {
+function login() {
     var pw = document.getElementById('login-password').value;
     var errEl = document.getElementById('login-error');
     errEl.textContent = '';
-    try {
-        var data = await api('admin_login', { password: pw });
+    api('admin_login', { password: pw }).then(function(data) {
         token = data.token;
         sessionStorage.setItem('admin_token', token);
         showDashboard();
-    } catch (e) {
+    }).catch(function(e) {
         errEl.textContent = e.message;
-    }
+    });
 }
 
 function logout() {
@@ -63,21 +124,20 @@ function logout() {
     document.getElementById('login-password').value = '';
 }
 
-async function showDashboard() {
+function showDashboard() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('dashboard').style.display = 'block';
-    await loadSections();
+    loadSections();
 }
 
 // ---- Sections CRUD ----
-async function loadSections() {
-    try {
-        var data = await api('admin_sections');
+function loadSections() {
+    api('admin_sections').then(function(data) {
         sections = data.sections;
         renderTable();
-    } catch (e) {
+    }).catch(function(e) {
         toast(e.message, true);
-    }
+    });
 }
 
 function renderTable() {
@@ -95,8 +155,8 @@ function renderTable() {
             '<td><code style="font-size:0.8125rem">' + esc(s.section_key) + '</code></td>' +
             '<td class="' + (s.is_active == 1 ? 'badge-active' : 'badge-inactive') + '">' + (s.is_active == 1 ? 'Si' : 'No') + '</td>' +
             '<td class="row-actions">' +
-                '<button class="btn btn-ghost btn-sm" onclick="openEditModal(' + s.id + ')" title="Editar">&#9998;</button>' +
-                '<button class="btn btn-ghost btn-sm" onclick="openDeleteModal(' + s.id + ')" title="Eliminar" style="color:var(--danger)">&#10005;</button>' +
+                '<button class="btn btn-ghost btn-sm btn-edit" data-id="' + s.id + '" title="Editar">&#9998;</button>' +
+                '<button class="btn btn-ghost btn-sm btn-del" data-id="' + s.id + '" title="Eliminar" style="color:var(--danger)">&#10005;</button>' +
             '</td>' +
         '</tr>';
     }).join('');
@@ -117,7 +177,10 @@ function openCreateModal() {
 }
 
 function openEditModal(id) {
-    var s = sections.find(function(x) { return x.id == id; });
+    var s = null;
+    for (var i = 0; i < sections.length; i++) {
+        if (sections[i].id == id) { s = sections[i]; break; }
+    }
     if (!s) return;
     editingId = id;
     document.getElementById('modal-title').textContent = 'Editar seccion';
@@ -136,7 +199,7 @@ function closeModal() {
     editingId = null;
 }
 
-async function saveSection(e) {
+function saveSection(e) {
     e.preventDefault();
     var btn = document.getElementById('btn-save');
     btn.disabled = true;
@@ -152,21 +215,23 @@ async function saveSection(e) {
         config: collectConfig(type)
     };
 
-    try {
-        await api('admin_save', payload);
+    api('admin_save', payload).then(function() {
         toast(editingId ? 'Seccion actualizada' : 'Seccion creada');
         closeModal();
-        await loadSections();
-    } catch (e) {
+        loadSections();
+    }).catch(function(e) {
         toast(e.message, true);
-    } finally {
+    }).finally(function() {
         btn.disabled = false;
-    }
+    });
 }
 
 // ---- Delete ----
 function openDeleteModal(id) {
-    var s = sections.find(function(x) { return x.id == id; });
+    var s = null;
+    for (var i = 0; i < sections.length; i++) {
+        if (sections[i].id == id) { s = sections[i]; break; }
+    }
     if (!s) return;
     deletingId = id;
     document.getElementById('delete-name').textContent = s.title;
@@ -178,16 +243,15 @@ function closeDeleteModal() {
     deletingId = null;
 }
 
-async function confirmDelete() {
+function confirmDelete() {
     if (!deletingId) return;
-    try {
-        await api('admin_delete', { id: deletingId });
+    api('admin_delete', { id: deletingId }).then(function() {
         toast('Seccion eliminada');
         closeDeleteModal();
-        await loadSections();
-    } catch (e) {
+        loadSections();
+    }).catch(function(e) {
         toast(e.message, true);
-    }
+    });
 }
 
 // ---- Drag & Drop reorder ----
@@ -230,19 +294,18 @@ function initDragAndDrop() {
     });
 }
 
-async function saveOrder() {
+function saveOrder() {
     var ids = Array.from(document.querySelectorAll('#sections-body tr[data-id]'))
         .map(function(r) { return parseInt(r.dataset.id); });
-    try {
-        await api('admin_reorder', { order: ids });
+    api('admin_reorder', { order: ids }).then(function() {
         var idxMap = {};
         ids.forEach(function(id, i) { idxMap[id] = i; });
         sections.sort(function(a, b) { return idxMap[a.id] - idxMap[b.id]; });
         toast('Orden guardado');
-    } catch (e) {
+    }).catch(function(e) {
         toast(e.message, true);
         renderTable();
-    }
+    });
 }
 
 // ---- Auto-generate key ----
@@ -328,7 +391,7 @@ function renderSurveyFields(container, config) {
         html += surveyOptionRow(2, '', '', DEFAULT_COLORS[1]);
     }
     html += '</div>';
-    html += '<button type="button" class="btn btn-outline btn-sm" style="margin-top:0.5rem" onclick="addSurveyOption()">+ Agregar opcion</button>';
+    html += '<button type="button" class="btn btn-outline btn-sm" style="margin-top:0.5rem" id="btn-add-survey-opt">+ Agregar opcion</button>';
     container.innerHTML = html;
 }
 
@@ -338,7 +401,7 @@ function surveyOptionRow(num, label, emoji, color) {
         '<input type="text" placeholder="Texto" value="' + esc(label) + '" class="opt-label">' +
         '<input type="text" placeholder="Emoji" value="' + esc(emoji) + '" class="opt-emoji" style="width:50px">' +
         '<input type="color" value="' + color + '" class="opt-color">' +
-        '<button type="button" class="btn-remove-option" onclick="removeOption(this)" title="Quitar">&times;</button>' +
+        '<button type="button" class="btn-remove-option" title="Quitar">&times;</button>' +
     '</div>';
 }
 
@@ -369,7 +432,7 @@ function renderQuizFields(container, config) {
         html += quizOptionRow(2, '', DEFAULT_COLORS[1], false);
     }
     html += '</div>';
-    html += '<button type="button" class="btn btn-outline btn-sm" style="margin-top:0.5rem" onclick="addQuizOption()">+ Agregar opcion</button>';
+    html += '<button type="button" class="btn btn-outline btn-sm" style="margin-top:0.5rem" id="btn-add-quiz-opt">+ Agregar opcion</button>';
     container.innerHTML = html;
 }
 
@@ -381,7 +444,7 @@ function quizOptionRow(num, label, color, isCorrect) {
         '</label>' +
         '<input type="text" placeholder="Texto" value="' + esc(label) + '" class="opt-label">' +
         '<input type="color" value="' + color + '" class="opt-color">' +
-        '<button type="button" class="btn-remove-option" onclick="removeOption(this)" title="Quitar">&times;</button>' +
+        '<button type="button" class="btn-remove-option" title="Quitar">&times;</button>' +
     '</div>';
 }
 
@@ -398,18 +461,20 @@ function renderReactionsFields(container, config) {
     var html = '<label style="font-size:0.8125rem;font-weight:500;margin-bottom:0.25rem;display:block">Emojis *</label>';
     html += '<div class="emoji-list" id="emoji-list">';
     emojis.forEach(function(em) {
-        html += '<span class="emoji-tag">' + em + '<button type="button" onclick="removeEmoji(this)">&times;</button></span>';
+        html += '<span class="emoji-tag">' + em + '<button type="button" class="btn-remove-emoji">&times;</button></span>';
     });
     html += '</div>';
     html += '<div class="add-emoji-row">' +
         '<input type="text" id="new-emoji" placeholder="\uD83D\uDE00" maxlength="4">' +
-        '<button type="button" class="btn btn-outline btn-sm" onclick="addEmoji()">Agregar</button>' +
+        '<button type="button" class="btn btn-outline btn-sm" id="btn-add-emoji">Agregar</button>' +
     '</div>';
     container.innerHTML = html;
 
     setTimeout(function() {
         var inp = document.getElementById('new-emoji');
-        if (inp) inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addEmoji(); } });
+        if (inp) inp.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); addEmoji(); }
+        });
     }, 0);
 }
 
@@ -420,14 +485,10 @@ function addEmoji() {
     var list = document.getElementById('emoji-list');
     var span = document.createElement('span');
     span.className = 'emoji-tag';
-    span.innerHTML = val + '<button type="button" onclick="removeEmoji(this)">&times;</button>';
+    span.innerHTML = val + '<button type="button" class="btn-remove-emoji">&times;</button>';
     list.appendChild(span);
     inp.value = '';
     inp.focus();
-}
-
-function removeEmoji(btn) {
-    btn.parentElement.remove();
 }
 
 function removeOption(btn) {
@@ -443,9 +504,10 @@ function removeOption(btn) {
 
 // ---- Collect config from form ----
 function collectConfig(type) {
+    var opts, emojis, correctRadio;
     switch (type) {
-        case 'survey': {
-            var opts = {};
+        case 'survey':
+            opts = {};
             document.querySelectorAll('#survey-options .option-row').forEach(function(row, i) {
                 opts[String(i + 1)] = {
                     label: row.querySelector('.opt-label').value.trim(),
@@ -454,7 +516,6 @@ function collectConfig(type) {
                 };
             });
             return { options: opts };
-        }
         case 'greeting':
             return { content: document.getElementById('cfg-content').value.trim() };
         case 'wordcloud':
@@ -462,17 +523,16 @@ function collectConfig(type) {
                 placeholder: document.getElementById('cfg-placeholder').value.trim(),
                 max_words: parseInt(document.getElementById('cfg-max-words').value) || 3
             };
-        case 'reactions': {
-            var emojis = [];
+        case 'reactions':
+            emojis = [];
             document.querySelectorAll('#emoji-list .emoji-tag').forEach(function(tag) {
                 var text = tag.firstChild.textContent.trim();
                 if (text) emojis.push(text);
             });
             return { emojis: emojis };
-        }
-        case 'quiz': {
-            var opts = {};
-            var correctRadio = document.querySelector('input[name="quiz-correct"]:checked');
+        case 'quiz':
+            opts = {};
+            correctRadio = document.querySelector('input[name="quiz-correct"]:checked');
             document.querySelectorAll('#quiz-options .option-row').forEach(function(row, i) {
                 opts[String(i + 1)] = {
                     label: row.querySelector('.opt-label').value.trim(),
@@ -484,7 +544,6 @@ function collectConfig(type) {
                 correct: correctRadio ? parseInt(correctRadio.value) : 1,
                 options: opts
             };
-        }
         case 'scale':
             return {
                 min: parseInt(document.getElementById('cfg-min').value) || 1,
