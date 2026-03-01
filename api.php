@@ -13,6 +13,7 @@
  * POST action=submit_word {meeting_id, section_id, user_id, word}  → guardar palabra (wordcloud)
  * GET  action=get_words&meeting_id=X&section_id=Y → palabras con frecuencia (ronda actual)
  * POST action=new_wordcloud {meeting_id}          → host crea nueva nube (incrementa ronda)
+ * GET  action=get_words_round&meeting_id=X&section_id=Y&round=N → palabras de una ronda especifica
  * POST action=send_reaction {meeting_id, emoji, user_id}           → guardar reaccion
  * GET  action=get_reactions&meeting_id=X&since=T → reacciones recientes
  * POST action=start_quiz {meeting_id}           → host inicia quiz timer
@@ -350,6 +351,18 @@ try {
             $currentRound = $roundRow ? (int) $roundRow['wordcloud_round'] : 1;
             $words = getWordFrequencies($pdo, $meetingId, $sectionId, $currentRound);
             jsonResponse(['words' => $words, 'round' => $currentRound]);
+            break;
+
+        // ---- Word Cloud: obtener palabras de una ronda especifica ----
+        case 'get_words_round':
+            $meetingId = $_GET['meeting_id'] ?? '';
+            $sectionId = $_GET['section_id'] ?? '';
+            $round     = isset($_GET['round']) ? (int) $_GET['round'] : 0;
+            if (!$meetingId || !$sectionId || $round < 1) {
+                jsonResponse(['error' => 'Faltan meeting_id, section_id o round'], 400);
+            }
+            $words = getWordFrequencies($pdo, $meetingId, $sectionId, $round);
+            jsonResponse(['words' => $words, 'round' => $round]);
             break;
 
         // ---- Word Cloud: nueva nube (incrementar ronda) ----

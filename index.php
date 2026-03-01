@@ -94,7 +94,11 @@ $version = time(); // cache-bust dinamico
                     <button class="btn-host btn-reopen hidden" id="btn-reopen-wordcloud">Reabrir nube</button>
                     <button class="btn-host btn-new" id="btn-new-wordcloud">Nueva nube</button>
                 </div>
-                <div id="wordcloud-round-badge" class="wordcloud-round-badge hidden">Nube #1</div>
+                <div id="wordcloud-round-nav" class="wordcloud-round-nav hidden">
+                    <button id="btn-round-prev" class="round-nav-btn" disabled>&lt;</button>
+                    <span id="wordcloud-round-label">Nube #1</span>
+                    <button id="btn-round-next" class="round-nav-btn" disabled>&gt;</button>
+                </div>
                 <h1 id="wordcloud-title"></h1>
                 <div id="wordcloud-cloud" class="wordcloud-cloud"></div>
                 <div id="wordcloud-input-area" class="wordcloud-input">

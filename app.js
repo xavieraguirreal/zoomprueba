@@ -305,15 +305,62 @@
     // WORD CLOUD
     // ============================================
 
+    var wordcloudViewingRound = 0; // 0 = viewing current (live) round
+
+    function updateRoundNav() {
+        var nav = $('wordcloud-round-nav');
+        var label = $('wordcloud-round-label');
+        var prevBtn = $('btn-round-prev');
+        var nextBtn = $('btn-round-next');
+        if (!nav) return;
+
+        var totalRound = state.wordcloudRound;
+        var viewing = wordcloudViewingRound || totalRound;
+
+        if (totalRound > 1 || state.isHost) {
+            nav.classList.remove('hidden');
+            var isLive = (viewing === totalRound);
+            label.textContent = 'Nube #' + viewing + (isLive ? ' (actual)' : '');
+            prevBtn.disabled = (viewing <= 1);
+            nextBtn.disabled = isLive;
+        } else {
+            nav.classList.add('hidden');
+        }
+    }
+
+    // Keep old name as alias for compatibility
     function updateRoundBadge(round) {
-        var badge = $('wordcloud-round-badge');
-        if (badge) {
-            if (round > 1) {
-                badge.textContent = 'Nube #' + round;
-                badge.classList.remove('hidden');
-            } else {
-                badge.classList.add('hidden');
-            }
+        updateRoundNav();
+    }
+
+    async function viewWordCloudRound(round) {
+        var section = state.sections[state.currentSection];
+        if (!section) return;
+        var isLive = (round === state.wordcloudRound);
+
+        wordcloudViewingRound = round;
+        updateRoundNav();
+
+        // Show/hide input based on whether viewing current live round
+        if (isLive) {
+            $('wordcloud-input-area').classList.remove('hidden');
+        } else {
+            $('wordcloud-input-area').classList.add('hidden');
+        }
+
+        // Fetch words for that round
+        try {
+            var res = await fetch(
+                'api.php?action=get_words_round&meeting_id=' + encodeURIComponent(state.meetingId) +
+                '&section_id=' + encodeURIComponent(state.currentSection) +
+                '&round=' + round
+            );
+            var data = await res.json();
+            wordcloudLastHash = ''; // force re-render
+            wordcloudForceRender = true;
+            renderWordCloudWords(data.words || []);
+        } catch (err) {
+            console.error('Error loading round:', err);
         }
     }
 
@@ -347,7 +394,8 @@
         var oldBadge = document.querySelector('.wordcloud-closed-badge');
         if (oldBadge) oldBadge.remove();
 
-        updateRoundBadge(state.wordcloudRound);
+        wordcloudViewingRound = 0; // reset to live view
+        updateRoundNav();
         $('wordcloud-remaining').textContent = '';
         $('wordcloud-cloud').innerHTML = '<p style="color:#64748b;text-align:center;">Cargando...</p>';
         wordcloudLastHash = ''; // reset to force render
@@ -1386,19 +1434,24 @@
                     state.wordcloudCount = 0;
                     wordcloudLastHash = '';
                     wordcloudPrevWords = {};
-                    updateRoundBadge(data.round);
+                    wordcloudViewingRound = 0; // switch to live view
+                    updateRoundNav();
                     $('wordcloud-input-area').classList.remove('hidden');
                     $('wordcloud-remaining').textContent = '';
                     var oldClosedBadge = document.querySelector('.wordcloud-closed-badge');
                     if (oldClosedBadge) oldClosedBadge.remove();
                 }
-                // Force re-layout if words changed (new submissions from others)
-                var pollHash = wordcloudHash(data.words);
-                if (pollHash !== wordcloudLastHash) {
-                    wordcloudForceRender = true;
+                // Only update live cloud if viewing current round
+                var isViewingLive = !wordcloudViewingRound || wordcloudViewingRound === state.wordcloudRound;
+                if (isViewingLive) {
+                    // Force re-layout if words changed (new submissions from others)
+                    var pollHash = wordcloudHash(data.words);
+                    if (pollHash !== wordcloudLastHash) {
+                        wordcloudForceRender = true;
+                    }
+                    renderWordCloudWords(data.words);
                 }
-                renderWordCloudWords(data.words);
-                if (data.status === 'closed') {
+                if (data.status === 'closed' && isViewingLive) {
                     $('wordcloud-input-area').classList.add('hidden');
                 }
             } else if (sectionType === 'reactions' && data.reactions) {
@@ -1500,6 +1553,20 @@
     // Host: nueva nube
     if ($('btn-new-wordcloud')) {
         $('btn-new-wordcloud').addEventListener('click', newWordCloud);
+    }
+
+    // Navegacion entre rondas de nubes
+    if ($('btn-round-prev')) {
+        $('btn-round-prev').addEventListener('click', function () {
+            var viewing = wordcloudViewingRound || state.wordcloudRound;
+            if (viewing > 1) viewWordCloudRound(viewing - 1);
+        });
+    }
+    if ($('btn-round-next')) {
+        $('btn-round-next').addEventListener('click', function () {
+            var viewing = wordcloudViewingRound || state.wordcloudRound;
+            if (viewing < state.wordcloudRound) viewWordCloudRound(viewing + 1);
+        });
     }
 
     // Participante: cambiar respuesta (survey)
