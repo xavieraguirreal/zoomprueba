@@ -344,20 +344,46 @@
     }
 
     var wordcloudColors = ['#3b82f6', '#ef4444', '#22c55e', '#eab308', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#f43f5e'];
-    var wordcloudPositions = []; // track placed words to avoid overlap
+    var wordcloudLastHash = ''; // to detect changes
+    var wordcloudPrevWords = {}; // track previous words for new-word detection
+    var wordcloudLastChangeTime = 0;
+    var wordcloudRecentChanges = 0; // how many changes in recent window
+
+    function wordcloudHash(words) {
+        var h = '';
+        for (var i = 0; i < words.length; i++) {
+            h += words[i].word + ':' + words[i].count + ',';
+        }
+        return h;
+    }
 
     function renderWordCloudWords(words) {
-        var cloud = $('wordcloud-cloud');
-        var prevWords = {};
+        // Only re-render if words actually changed
+        var hash = wordcloudHash(words);
+        if (hash === wordcloudLastHash) return;
 
-        // Remember existing words for animation comparison
-        var existingSpans = cloud.querySelectorAll('.wordcloud-word');
-        for (var e = 0; e < existingSpans.length; e++) {
-            prevWords[existingSpans[e].getAttribute('data-word')] = true;
+        // Count how many new words vs previous render
+        var newCount = 0;
+        var currentWords = {};
+        for (var n = 0; n < words.length; n++) {
+            currentWords[words[n].word] = parseInt(words[n].count);
+            if (!wordcloudPrevWords[words[n].word]) newCount++;
         }
 
+        // Track activity speed
+        var now = Date.now();
+        if (now - wordcloudLastChangeTime < 5000) {
+            wordcloudRecentChanges += newCount;
+        } else {
+            wordcloudRecentChanges = newCount;
+        }
+        wordcloudLastChangeTime = now;
+
+        wordcloudPrevWords = currentWords;
+        wordcloudLastHash = hash;
+
+        var cloud = $('wordcloud-cloud');
         cloud.innerHTML = '';
-        wordcloudPositions = [];
 
         if (words.length === 0) {
             cloud.innerHTML = '<p style="color:#64748b;text-align:center;position:relative;">Aun no hay palabras</p>';
@@ -366,24 +392,33 @@
 
         var maxCount = 1;
         for (var i = 0; i < words.length; i++) {
-            if (words[i].count > maxCount) maxCount = parseInt(words[i].count);
+            if (parseInt(words[i].count) > maxCount) maxCount = parseInt(words[i].count);
         }
 
         var cloudWidth = cloud.offsetWidth || 350;
-        var cloudHeight = Math.max(280, words.length * 20);
+        var cloudHeight = Math.max(300, words.length * 28);
         cloud.style.minHeight = cloudHeight + 'px';
 
-        // Sort by count descending so biggest words get placed first
+        // Sort by count descending
         var sorted = words.slice().sort(function (a, b) { return b.count - a.count; });
+
+        // Use a seeded layout so positions are stable
+        var placed = [];
 
         for (var j = 0; j < sorted.length; j++) {
             var w = sorted[j];
             var ratio = parseInt(w.count) / maxCount;
-            var fontSize = 1.0 + ratio * 2.5; // 1rem to 3.5rem
+            var fontSize = 1.0 + ratio * 2.2; // 1rem to 3.2rem
             var color = wordcloudColors[j % wordcloudColors.length];
-            var rotations = [-12, -6, -3, 0, 0, 0, 3, 6, 8];
-            var rotate = rotations[j % rotations.length];
-            var isNew = !prevWords[w.word];
+
+            // Some words vertical (roughly 20%)
+            var isVertical = (j % 5 === 2);
+            var rotations = [-8, -3, 0, 0, 5, 0, -5, 3, 0, 0];
+            var rotate = isVertical ? 90 : rotations[j % rotations.length];
+
+            // Animation speed: slow (1.2s) normally, faster (0.4s) when many words arriving
+            var baseSpeed = wordcloudRecentChanges > 3 ? 0.4 : wordcloudRecentChanges > 1 ? 0.7 : 1.2;
+            var stagger = wordcloudRecentChanges > 3 ? 0.05 : 0.12;
 
             var span = document.createElement('span');
             span.className = 'wordcloud-word';
@@ -392,59 +427,63 @@
             span.style.fontSize = fontSize + 'rem';
             span.style.color = color;
             span.style.setProperty('--rotate', rotate + 'deg');
-            span.style.animationDelay = (j * 0.08) + 's';
+            span.style.animationDuration = baseSpeed + 's';
+            span.style.animationDelay = (j * stagger) + 's';
 
-            // If it's a new word, add pulse after pop
-            if (isNew && Object.keys(prevWords).length > 0) {
-                span.style.animationName = 'wordPop, wordPulse';
-                span.style.animationDuration = '0.5s, 0.6s';
-                span.style.animationDelay = (j * 0.08) + 's, ' + (j * 0.08 + 0.5) + 's';
-                span.style.animationTimingFunction = 'cubic-bezier(0.175, 0.885, 0.32, 1.275), ease-in-out';
-                span.style.animationFillMode = 'forwards, none';
-            }
+            // Estimate bounding box
+            var charW = fontSize * 11;
+            var estW = isVertical ? (fontSize * 18) : (w.word.length * charW);
+            var estH = isVertical ? (w.word.length * charW) : (fontSize * 22);
 
-            // Position: try to place without overlap
-            var pos = findWordPosition(cloudWidth, cloudHeight, fontSize, w.word.length);
+            var pos = placeWord(placed, cloudWidth, cloudHeight, estW, estH);
             span.style.left = pos.x + 'px';
             span.style.top = pos.y + 'px';
 
+            placed.push({ x: pos.x, y: pos.y, w: estW, h: estH });
             cloud.appendChild(span);
         }
     }
 
-    function findWordPosition(cloudW, cloudH, fontSize, wordLen) {
-        var estWidth = wordLen * fontSize * 10;
-        var estHeight = fontSize * 18;
-        var maxAttempts = 30;
-        var padX = 10, padY = 5;
+    function placeWord(placed, cloudW, cloudH, estW, estH) {
+        // Spiral placement from center outward
+        var cx = (cloudW - estW) / 2;
+        var cy = (cloudH - estH) / 2;
+        var step = 8;
+        var angle = 0;
+        var radius = 0;
 
-        for (var attempt = 0; attempt < maxAttempts; attempt++) {
-            var x = Math.random() * (cloudW - estWidth - 20) + 10;
-            var y = Math.random() * (cloudH - estHeight - 10) + 5;
+        for (var i = 0; i < 200; i++) {
+            var x = cx + Math.cos(angle) * radius;
+            var y = cy + Math.sin(angle) * radius;
 
-            var collision = false;
-            for (var p = 0; p < wordcloudPositions.length; p++) {
-                var prev = wordcloudPositions[p];
-                if (x < prev.x + prev.w + padX &&
-                    x + estWidth + padX > prev.x &&
-                    y < prev.y + prev.h + padY &&
-                    y + estHeight + padY > prev.y) {
-                    collision = true;
-                    break;
-                }
-            }
+            // Clamp to bounds
+            x = Math.max(5, Math.min(cloudW - estW - 5, x));
+            y = Math.max(5, Math.min(cloudH - estH - 5, y));
 
-            if (!collision) {
-                wordcloudPositions.push({ x: x, y: y, w: estWidth, h: estHeight });
+            if (!hasCollision(placed, x, y, estW, estH)) {
                 return { x: x, y: y };
             }
+
+            angle += 0.6;
+            radius += step * 0.15;
         }
 
-        // Fallback: just place it somewhere
-        var fallbackX = Math.random() * (cloudW - 60) + 10;
-        var fallbackY = Math.random() * (cloudH - 30) + 5;
-        wordcloudPositions.push({ x: fallbackX, y: fallbackY, w: estWidth, h: estHeight });
-        return { x: fallbackX, y: fallbackY };
+        // Fallback
+        return { x: Math.random() * (cloudW - estW), y: Math.random() * (cloudH - estH) };
+    }
+
+    function hasCollision(placed, x, y, w, h) {
+        var pad = 8;
+        for (var p = 0; p < placed.length; p++) {
+            var r = placed[p];
+            if (x < r.x + r.w + pad &&
+                x + w + pad > r.x &&
+                y < r.y + r.h + pad &&
+                y + h + pad > r.y) {
+                return true;
+            }
+        }
+        return false;
     }
 
     async function submitWord() {
