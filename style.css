@@ -365,8 +365,9 @@ body {
 
 .wordcloud-cloud {
     position: relative;
-    min-height: 340px;
-    padding: 10px 5px;
+    height: 320px;
+    max-height: 320px;
+    padding: 5px;
     overflow: hidden;
     border-radius: 12px;
     background: radial-gradient(ellipse at center, rgba(59,130,246,0.04) 0%, transparent 70%);
