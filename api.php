@@ -271,6 +271,15 @@ try {
             } elseif ($sectionType === 'reactions') {
                 $since = date('Y-m-d H:i:s', time() - 10);
                 $response['reactions'] = getRecentReactions($pdo, $meetingId, $since);
+                // Conteos agregados para estilos race/energy/mosaic
+                $countStmt = $pdo->prepare(
+                    "SELECT emoji, COUNT(*) as count FROM reaction_events WHERE meeting_id = ? GROUP BY emoji ORDER BY count DESC"
+                );
+                $countStmt->execute([$meetingId]);
+                $response['reaction_counts'] = $countStmt->fetchAll();
+                $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM reaction_events WHERE meeting_id = ?");
+                $totalStmt->execute([$meetingId]);
+                $response['reaction_total'] = (int) $totalStmt->fetchColumn();
             } elseif ($sectionType === 'quiz') {
                 // Incluir started_at y time_limit para sincronizar timer
                 $activeStmt = $pdo->prepare(
@@ -418,7 +427,16 @@ try {
                 "INSERT INTO reaction_events (meeting_id, emoji, user_id) VALUES (?, ?, ?)"
             );
             $stmt->execute([$meetingId, $emoji, $userId]);
-            jsonResponse(['success' => true]);
+            // Conteos para feedback instantáneo
+            $countStmt = $pdo->prepare(
+                "SELECT emoji, COUNT(*) as count FROM reaction_events WHERE meeting_id = ? GROUP BY emoji ORDER BY count DESC"
+            );
+            $countStmt->execute([$meetingId]);
+            $reactionCounts = $countStmt->fetchAll();
+            $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM reaction_events WHERE meeting_id = ?");
+            $totalStmt->execute([$meetingId]);
+            $reactionTotal = (int) $totalStmt->fetchColumn();
+            jsonResponse(['success' => true, 'reaction_counts' => $reactionCounts, 'reaction_total' => $reactionTotal]);
             break;
 
         // ---- Reactions: obtener reacciones recientes ----

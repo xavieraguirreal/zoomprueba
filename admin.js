@@ -671,7 +671,18 @@ function addQuizOption() {
 
 function renderReactionsFields(container, config) {
     var emojis = config.emojis || [];
-    var html = '<label style="font-size:0.8125rem;font-weight:500;margin-bottom:0.25rem;display:block">Emojis *</label>';
+    var reactionStyle = config.reaction_style || 'explosive';
+    var html = '<div class="form-group">' +
+        '<label>Estilo de visualizacion</label>' +
+        '<select id="cfg-reaction-style">' +
+            '<option value="explosive"' + (reactionStyle === 'explosive' ? ' selected' : '') + '>Explosivo (emojis volando)</option>' +
+            '<option value="race"' + (reactionStyle === 'race' ? ' selected' : '') + '>Carrera (barras compitiendo)</option>' +
+            '<option value="mosaic"' + (reactionStyle === 'mosaic' ? ' selected' : '') + '>Mosaico (grilla creciente)</option>' +
+            '<option value="energy"' + (reactionStyle === 'energy' ? ' selected' : '') + '>Energia (anillo + confetti)</option>' +
+            '<option value="matrix"' + (reactionStyle === 'matrix' ? ' selected' : '') + '>Matrix (lluvia de emojis)</option>' +
+        '</select>' +
+    '</div>';
+    html += '<label style="font-size:0.8125rem;font-weight:500;margin-bottom:0.25rem;display:block">Emojis *</label>';
     html += '<div class="emoji-list" id="emoji-list">';
     emojis.forEach(function(em) {
         html += '<span class="emoji-tag">' + em + '<button type="button" class="btn-remove-emoji">&times;</button></span>';
@@ -742,7 +753,10 @@ function collectConfig(type) {
                 var text = tag.firstChild.textContent.trim();
                 if (text) emojis.push(text);
             });
-            return { emojis: emojis };
+            return {
+                emojis: emojis,
+                reaction_style: document.getElementById('cfg-reaction-style').value
+            };
         case 'quiz':
             opts = {};
             correctRadio = document.querySelector('input[name="quiz-correct"]:checked');

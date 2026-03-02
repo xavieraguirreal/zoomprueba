@@ -28,6 +28,14 @@
         reactionLastFetch: null,
     };
 
+    // ---- Estado de estilos de reacciones ----
+    var reactionStyle = 'explosive';
+    var reactionCounts = {};
+    var reactionTotal = 0;
+    var matrixInterval = null;
+    var energyGoal = 100;
+    var lastEnergyMilestone = 0;
+
     // ---- Elementos DOM fijos ----
     const $ = (id) => document.getElementById(id);
     const $loadingScreen = $('loading-screen');
@@ -654,8 +662,42 @@
             hostControls.classList.add('hidden');
         }
 
+        // Determinar estilo
+        reactionStyle = section.reaction_style || 'explosive';
+        reactionCounts = {};
+        reactionTotal = 0;
+        lastEnergyMilestone = 0;
+        if (matrixInterval) { clearInterval(matrixInterval); matrixInterval = null; }
+
         // Limpiar stage
-        $('reactions-stage').innerHTML = '';
+        var stage = $('reactions-stage');
+        stage.innerHTML = '';
+        stage.className = 'reactions-stage';
+
+        // Setup stage area según estilo
+        var stageArea = $('reactions-stage-area');
+        if (stageArea) stageArea.remove();
+
+        if (reactionStyle !== 'explosive') {
+            var area = document.createElement('div');
+            area.id = 'reactions-stage-area';
+            // Insertar antes de los botones dentro de la card
+            var buttonsEl = $('reactions-buttons');
+            buttonsEl.parentElement.insertBefore(area, buttonsEl);
+
+            if (reactionStyle === 'race') {
+                area.className = 'race-container';
+                setupRace(section);
+            } else if (reactionStyle === 'mosaic') {
+                area.className = 'mosaic-wrap';
+                area.innerHTML = '<div class="mosaic-grid" id="mosaic-grid"></div>' +
+                    '<div class="mosaic-total" id="mosaic-total">0 reacciones</div>';
+            } else if (reactionStyle === 'energy') {
+                setupEnergy(area, section);
+            } else if (reactionStyle === 'matrix') {
+                setupMatrix(area, section);
+            }
+        }
 
         // Crear botones de emojis
         var buttonsContainer = $('reactions-buttons');
@@ -687,12 +729,204 @@
         showScreen($reactionsScreen);
     }
 
+    // ---- Race setup ----
+    function setupRace(section) {
+        var area = $('reactions-stage-area');
+        var emojis = section.emojis || [];
+        var raceColors = ['#3b82f6','#ef4444','#22c55e','#eab308','#8b5cf6','#ec4899','#06b6d4','#f97316'];
+        var html = '';
+        for (var i = 0; i < emojis.length; i++) {
+            reactionCounts[emojis[i]] = 0;
+            html += '<div class="race-row" data-emoji="' + emojis[i] + '">' +
+                '<span class="race-emoji">' + emojis[i] + '</span>' +
+                '<div class="race-bar-wrap"><div class="race-bar" style="width:4px;background:' + raceColors[i % raceColors.length] + '"></div></div>' +
+                '<span class="race-count">0</span>' +
+            '</div>';
+        }
+        area.innerHTML = html;
+    }
+
+    function updateRace() {
+        var rows = document.querySelectorAll('.race-row');
+        if (!rows.length) return;
+        var maxCount = 1;
+        for (var e in reactionCounts) {
+            if (reactionCounts[e] > maxCount) maxCount = reactionCounts[e];
+        }
+        rows.forEach(function (row) {
+            var emoji = row.getAttribute('data-emoji');
+            var count = reactionCounts[emoji] || 0;
+            var bar = row.querySelector('.race-bar');
+            var countEl = row.querySelector('.race-count');
+            var pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+            bar.style.width = Math.max(4, pct) + '%';
+            countEl.textContent = count;
+        });
+    }
+
+    // ---- Mosaic ----
+    function addMosaicCell(emoji) {
+        var grid = $('mosaic-grid');
+        if (!grid) return;
+        var cell = document.createElement('div');
+        cell.className = 'mosaic-cell';
+        cell.textContent = emoji;
+        grid.appendChild(cell);
+        // Auto-scroll to bottom
+        grid.scrollTop = grid.scrollHeight;
+        var totalEl = $('mosaic-total');
+        if (totalEl) totalEl.textContent = reactionTotal + ' reacciones';
+    }
+
+    function syncMosaic(counts) {
+        var grid = $('mosaic-grid');
+        if (!grid) return;
+        var totalEl = $('mosaic-total');
+        if (totalEl) totalEl.textContent = reactionTotal + ' reacciones';
+    }
+
+    // ---- Energy setup ----
+    function setupEnergy(area, section) {
+        var circumference = 2 * Math.PI * 75;
+        area.className = 'energy-container';
+        area.innerHTML =
+            '<div class="energy-ring-wrap">' +
+                '<svg class="energy-ring" width="180" height="180" viewBox="0 0 180 180">' +
+                    '<circle class="energy-ring-bg" cx="90" cy="90" r="75"></circle>' +
+                    '<circle class="energy-ring-fill" id="energy-fill" cx="90" cy="90" r="75" ' +
+                        'stroke-dasharray="' + circumference + '" stroke-dashoffset="' + circumference + '"></circle>' +
+                '</svg>' +
+                '<div class="energy-emoji-center" id="energy-emoji">✨</div>' +
+                '<div class="energy-confetti-container" id="energy-confetti"></div>' +
+            '</div>' +
+            '<div class="energy-counter" id="energy-counter">0</div>' +
+            '<div class="energy-goal-label" id="energy-goal-label">Meta: ' + energyGoal + '</div>';
+    }
+
+    function updateEnergy() {
+        var fill = $('energy-fill');
+        var counterEl = $('energy-counter');
+        var emojiCenter = $('energy-emoji');
+        if (!fill) return;
+
+        var circumference = 2 * Math.PI * 75;
+        var pct = Math.min(reactionTotal / energyGoal, 1);
+        var offset = circumference * (1 - pct);
+        fill.style.strokeDashoffset = offset;
+
+        // Color gradient based on progress
+        if (pct < 0.33) fill.style.stroke = '#3b82f6';
+        else if (pct < 0.66) fill.style.stroke = '#eab308';
+        else fill.style.stroke = '#22c55e';
+
+        if (counterEl) counterEl.textContent = reactionTotal;
+
+        // Dominant emoji
+        var dominant = '✨';
+        var maxC = 0;
+        for (var e in reactionCounts) {
+            if (reactionCounts[e] > maxC) { maxC = reactionCounts[e]; dominant = e; }
+        }
+        if (emojiCenter) emojiCenter.textContent = dominant;
+
+        // Milestones
+        var milestones = [10, 25, 50, 75, 100, 150, 200];
+        for (var m = 0; m < milestones.length; m++) {
+            if (reactionTotal >= milestones[m] && lastEnergyMilestone < milestones[m]) {
+                lastEnergyMilestone = milestones[m];
+                spawnEnergyConfetti();
+            }
+        }
+    }
+
+    function spawnEnergyConfetti() {
+        var container = $('energy-confetti');
+        if (!container) return;
+        var confettiColors = ['#ef4444','#22c55e','#3b82f6','#eab308','#8b5cf6','#ec4899'];
+        for (var i = 0; i < 20; i++) {
+            var p = document.createElement('div');
+            p.className = 'energy-confetti-particle';
+            p.style.background = confettiColors[i % confettiColors.length];
+            p.style.left = '50%';
+            p.style.top = '50%';
+            var angle = (Math.PI * 2 * i) / 20;
+            var dist = 60 + Math.random() * 60;
+            p.style.setProperty('--cx', (Math.cos(angle) * dist) + 'px');
+            p.style.setProperty('--cy', (Math.sin(angle) * dist) + 'px');
+            p.style.setProperty('--cr', (Math.random() * 360) + 'deg');
+            container.appendChild(p);
+            (function (el) {
+                setTimeout(function () { if (el.parentNode) el.remove(); }, 1000);
+            })(p);
+        }
+    }
+
+    // ---- Matrix setup ----
+    function setupMatrix(area, section) {
+        area.className = 'matrix-container';
+        var numCols = 8;
+        var html = '';
+        for (var i = 0; i < numCols; i++) {
+            html += '<div class="matrix-col" data-col="' + i + '"></div>';
+        }
+        area.innerHTML = html;
+
+        // Fade old cells periodically
+        matrixInterval = setInterval(function () {
+            var cells = area.querySelectorAll('.matrix-cell:not(.matrix-cell-old)');
+            for (var c = 0; c < cells.length; c++) {
+                var age = parseInt(cells[c].getAttribute('data-age') || '0') + 1;
+                cells[c].setAttribute('data-age', age);
+                if (age > 8) cells[c].classList.add('matrix-cell-old');
+            }
+            // Remove very old cells
+            var old = area.querySelectorAll('.matrix-cell-old');
+            for (var o = 0; o < old.length; o++) {
+                var oldAge = parseInt(old[o].getAttribute('data-age') || '0');
+                if (oldAge > 15) old[o].remove();
+            }
+        }, 2000);
+    }
+
+    function addMatrixEmoji(emoji) {
+        var area = $('reactions-stage-area');
+        if (!area || reactionStyle !== 'matrix') return;
+        var cols = area.querySelectorAll('.matrix-col');
+        if (!cols.length) return;
+        var colIdx = Math.floor(Math.random() * cols.length);
+        var cell = document.createElement('div');
+        cell.className = 'matrix-cell';
+        cell.textContent = emoji;
+        cell.setAttribute('data-age', '0');
+        cols[colIdx].appendChild(cell);
+        // Limit cells per column
+        if (cols[colIdx].children.length > 20) {
+            cols[colIdx].removeChild(cols[colIdx].firstChild);
+        }
+    }
+
     async function sendReaction(emoji) {
-        // Burst local inmediato (multiple emojis)
-        spawnReactionBurst(emoji, true);
+        // Efecto local inmediato según estilo
+        if (reactionStyle === 'explosive') {
+            spawnReactionBurst(emoji, true);
+        } else if (reactionStyle === 'race') {
+            reactionCounts[emoji] = (reactionCounts[emoji] || 0) + 1;
+            reactionTotal++;
+            updateRace();
+        } else if (reactionStyle === 'mosaic') {
+            reactionTotal++;
+            addMosaicCell(emoji);
+        } else if (reactionStyle === 'energy') {
+            reactionCounts[emoji] = (reactionCounts[emoji] || 0) + 1;
+            reactionTotal++;
+            updateEnergy();
+        } else if (reactionStyle === 'matrix') {
+            reactionTotal++;
+            addMatrixEmoji(emoji);
+        }
 
         try {
-            await fetch('api.php', {
+            var res = await fetch('api.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -702,9 +936,28 @@
                     user_id: state.userId,
                 }),
             });
+            var data = await res.json();
+            // Sincronizar conteos desde servidor
+            if (data.reaction_counts) {
+                syncReactionCounts(data.reaction_counts, data.reaction_total);
+            }
         } catch (err) {
             console.error('Error sending reaction:', err);
         }
+    }
+
+    function syncReactionCounts(counts, total) {
+        if (counts) {
+            reactionCounts = {};
+            for (var i = 0; i < counts.length; i++) {
+                reactionCounts[counts[i].emoji] = parseInt(counts[i].count);
+            }
+        }
+        if (total !== undefined) reactionTotal = total;
+
+        if (reactionStyle === 'race') updateRace();
+        else if (reactionStyle === 'energy') updateEnergy();
+        else if (reactionStyle === 'mosaic') syncMosaic(counts);
     }
 
     var reactionTypes = ['reaction-float-up', 'reaction-float-burst', 'reaction-float-pop', 'reaction-float-rain'];
@@ -1406,6 +1659,7 @@
     function backToMenu() {
         stopPolling();
         stopQuizTimer();
+        if (matrixInterval) { clearInterval(matrixInterval); matrixInterval = null; }
         state.currentSection = null;
         state.selectedAnswer = null;
         state.quizAnswered = false;
@@ -1516,11 +1770,24 @@
                         $('wordcloud-input-area').classList.add('hidden');
                     }
                 }
-            } else if (sectionType === 'reactions' && data.reactions) {
-                for (var i = 0; i < data.reactions.length; i++) {
-                    var r = data.reactions[i];
-                    if (r.user_id !== state.userId) {
-                        spawnReactionFloat(r.emoji);
+            } else if (sectionType === 'reactions') {
+                // Sincronizar conteos desde poll
+                if (data.reaction_counts) {
+                    syncReactionCounts(data.reaction_counts, data.reaction_total);
+                }
+                // Animaciones para reacciones de otros usuarios
+                if (data.reactions) {
+                    for (var i = 0; i < data.reactions.length; i++) {
+                        var r = data.reactions[i];
+                        if (r.user_id !== state.userId) {
+                            if (reactionStyle === 'explosive') {
+                                spawnReactionFloat(r.emoji);
+                            } else if (reactionStyle === 'mosaic') {
+                                addMosaicCell(r.emoji);
+                            } else if (reactionStyle === 'matrix') {
+                                addMatrixEmoji(r.emoji);
+                            }
+                        }
                     }
                 }
             } else if (sectionType === 'quiz') {
