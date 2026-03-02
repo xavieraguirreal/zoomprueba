@@ -11,6 +11,7 @@ var token = sessionStorage.getItem('admin_token');
 var sections = [];
 var editingId = null;
 var deletingId = null;
+var currentBroadcast = null; // section_key de la seccion compartida
 
 // ---- Bind all events ----
 try {
@@ -82,6 +83,17 @@ document.addEventListener('click', function(e) {
         addEmoji();
         return;
     }
+    // Broadcast (compartir)
+    if (target.closest('.btn-broadcast')) {
+        var key = target.closest('.btn-broadcast').getAttribute('data-key');
+        setBroadcast(key);
+        return;
+    }
+    // Stop broadcast
+    if (target.closest('.btn-stop-broadcast')) {
+        stopBroadcast();
+        return;
+    }
 });
 
 // Init
@@ -144,6 +156,7 @@ function showDashboard() {
 function loadSections() {
     api('admin_sections').then(function(data) {
         sections = data.sections;
+        currentBroadcast = data.broadcast || null;
         renderTable();
     }).catch(function(e) {
         toast(e.message, true);
@@ -154,10 +167,17 @@ function renderTable() {
     var tbody = document.getElementById('sections-body');
     if (sections.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No hay secciones. Crea la primera.</td></tr>';
+        renderBroadcastBar();
         return;
     }
     tbody.innerHTML = sections.map(function(s) {
-        return '<tr draggable="true" data-id="' + s.id + '">' +
+        var isBc = (currentBroadcast === s.section_key);
+        var bcBtn = s.is_active == 1
+            ? (isBc
+                ? '<button class="btn btn-sm btn-stop-broadcast" title="Dejar de compartir" style="background:#22c55e;color:#fff;font-size:0.7rem">&#9654; EN VIVO</button>'
+                : '<button class="btn btn-ghost btn-sm btn-broadcast" data-key="' + esc(s.section_key) + '" title="Compartir">&#9654;</button>')
+            : '';
+        return '<tr draggable="true" data-id="' + s.id + '"' + (isBc ? ' style="background:#f0fdf4"' : '') + '>' +
             '<td><span class="drag-handle" title="Arrastrar para reordenar">&#9776;</span></td>' +
             '<td style="font-size:1.25rem">' + esc(s.icon) + '</td>' +
             '<td><strong>' + esc(s.title) + '</strong></td>' +
@@ -165,12 +185,32 @@ function renderTable() {
             '<td><code style="font-size:0.8125rem">' + esc(s.section_key) + '</code></td>' +
             '<td class="' + (s.is_active == 1 ? 'badge-active' : 'badge-inactive') + '">' + (s.is_active == 1 ? 'Si' : 'No') + '</td>' +
             '<td class="row-actions">' +
+                bcBtn +
                 '<button class="btn btn-ghost btn-sm btn-edit" data-id="' + s.id + '" title="Editar">&#9998;</button>' +
                 '<button class="btn btn-ghost btn-sm btn-del" data-id="' + s.id + '" title="Eliminar" style="color:var(--danger)">&#10005;</button>' +
             '</td>' +
         '</tr>';
     }).join('');
+    renderBroadcastBar();
     initDragAndDrop();
+}
+
+function renderBroadcastBar() {
+    var existing = document.getElementById('broadcast-bar');
+    if (existing) existing.remove();
+    if (!currentBroadcast) return;
+    var s = null;
+    for (var i = 0; i < sections.length; i++) {
+        if (sections[i].section_key === currentBroadcast) { s = sections[i]; break; }
+    }
+    if (!s) return;
+    var bar = document.createElement('div');
+    bar.id = 'broadcast-bar';
+    bar.style.cssText = 'background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;';
+    bar.innerHTML = '<span style="color:#16a34a;font-weight:500">&#9654; En vivo: <strong>' + esc(s.title) + '</strong> (' + (TYPE_LABELS[s.type] || s.type) + ')</span>' +
+        '<button class="btn btn-sm btn-stop-broadcast" style="background:#ef4444;color:#fff">Detener</button>';
+    var tableWrap = document.querySelector('.table-wrap');
+    tableWrap.parentNode.insertBefore(bar, tableWrap);
 }
 
 // ---- Create / Edit modal ----
@@ -266,6 +306,27 @@ function confirmDelete() {
         toast('Seccion eliminada');
         closeDeleteModal();
         loadSections();
+    }).catch(function(e) {
+        toast(e.message, true);
+    });
+}
+
+// ---- Broadcast (compartir seccion) ----
+function setBroadcast(sectionKey) {
+    api('admin_broadcast', { section_key: sectionKey }).then(function() {
+        currentBroadcast = sectionKey;
+        renderTable();
+        toast('Seccion compartida - todos la ven ahora');
+    }).catch(function(e) {
+        toast(e.message, true);
+    });
+}
+
+function stopBroadcast() {
+    api('admin_stop_broadcast').then(function() {
+        currentBroadcast = null;
+        renderTable();
+        toast('Se dejo de compartir');
     }).catch(function(e) {
         toast(e.message, true);
     });

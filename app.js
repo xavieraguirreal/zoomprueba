@@ -15,7 +15,7 @@
 
     // ---- Estado ----
     const state = {
-        meetingId: 'standalone',
+        meetingId: 'broadcast',
         userId: 'user_' + Math.random().toString(36).substring(2, 10),
         userName: null,
         isInZoom: false,

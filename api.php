@@ -11,6 +11,8 @@
  * POST action=admin_save     {section data}     → crear o actualizar seccion
  * POST action=admin_delete   {id}               → eliminar seccion
  * POST action=admin_reorder  {order: [id,...]}  → guardar nuevo orden
+ * POST action=admin_broadcast {section_key}     → compartir seccion (todos la ven)
+ * POST action=admin_stop_broadcast              → dejar de compartir
  * POST action=set_active  {meeting_id, section_id} → host establece seccion activa
  * POST action=close       {meeting_id}          → host cierra encuesta
  * POST action=reopen      {meeting_id}          → host reabre encuesta
@@ -514,7 +516,14 @@ try {
                 $row['config'] = json_decode($row['config'], true);
                 $result[] = $row;
             }
-            jsonResponse(['sections' => $result]);
+            // Incluir seccion broadcast activa
+            $bcStmt = $pdo->prepare(
+                "SELECT section_id FROM meeting_active_section WHERE meeting_id = 'broadcast'"
+            );
+            $bcStmt->execute();
+            $bcRow = $bcStmt->fetch();
+            $broadcast = $bcRow ? $bcRow['section_id'] : null;
+            jsonResponse(['sections' => $result, 'broadcast' => $broadcast]);
             break;
 
         // ---- Admin: crear o actualizar seccion ----
@@ -624,6 +633,32 @@ try {
             }
             $stmt = $pdo->prepare("DELETE FROM app_sections WHERE id = ?");
             $stmt->execute([$id]);
+            jsonResponse(['success' => true]);
+            break;
+
+        // ---- Admin: compartir seccion (broadcast) ----
+        case 'admin_broadcast':
+            $sectionKey = $input['section_key'] ?? '';
+            if (!$sectionKey) {
+                jsonResponse(['error' => 'Falta section_key'], 400);
+            }
+            $sections = getSections();
+            if (!isset($sections[$sectionKey])) {
+                jsonResponse(['error' => 'Seccion no encontrada'], 400);
+            }
+            $stmt = $pdo->prepare(
+                "INSERT INTO meeting_active_section (meeting_id, section_id, status, started_at)
+                 VALUES ('broadcast', ?, 'voting', NULL)
+                 ON DUPLICATE KEY UPDATE section_id = VALUES(section_id), status = 'voting', started_at = NULL"
+            );
+            $stmt->execute([$sectionKey]);
+            jsonResponse(['success' => true, 'section_key' => $sectionKey]);
+            break;
+
+        // ---- Admin: dejar de compartir ----
+        case 'admin_stop_broadcast':
+            $stmt = $pdo->prepare("DELETE FROM meeting_active_section WHERE meeting_id = 'broadcast'");
+            $stmt->execute();
             jsonResponse(['success' => true]);
             break;
 
