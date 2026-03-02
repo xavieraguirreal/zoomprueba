@@ -946,11 +946,35 @@
         }
     }
 
+    function normalizeEmoji(s) {
+        // Strip variation selectors (FE0E/FE0F) for comparison
+        return s.replace(/[\uFE0E\uFE0F]/g, '');
+    }
+
     function syncReactionCounts(counts, total) {
         if (counts) {
+            var section = state.sections[state.currentSection];
+            var sectionEmojis = section ? (section.emojis || []) : [];
             reactionCounts = {};
+            // Initialize all section emojis to 0
+            for (var j = 0; j < sectionEmojis.length; j++) {
+                reactionCounts[sectionEmojis[j]] = 0;
+            }
+            // Map server counts to section emojis using normalized comparison
             for (var i = 0; i < counts.length; i++) {
-                reactionCounts[counts[i].emoji] = parseInt(counts[i].count);
+                var serverEmoji = counts[i].emoji;
+                var serverNorm = normalizeEmoji(serverEmoji);
+                var matched = false;
+                for (var k = 0; k < sectionEmojis.length; k++) {
+                    if (normalizeEmoji(sectionEmojis[k]) === serverNorm) {
+                        reactionCounts[sectionEmojis[k]] = parseInt(counts[i].count);
+                        matched = true;
+                        break;
+                    }
+                }
+                if (!matched) {
+                    reactionCounts[serverEmoji] = parseInt(counts[i].count);
+                }
             }
         }
         if (total !== undefined) reactionTotal = total;
@@ -1815,7 +1839,13 @@
                     return;
                 }
                 if (data.status === 'voting' && $resultsScreen && !$resultsScreen.classList.contains('hidden')) {
-                    renderSurvey(section, state.currentSection);
+                    if (state.selectedAnswer) {
+                        // Ya votó: refrescar resultados en vivo
+                        loadResults(state.currentSection);
+                    } else {
+                        // Host reabrió y no ha votado: volver a encuesta
+                        renderSurvey(section, state.currentSection);
+                    }
                 }
             }
         } catch (err) {
