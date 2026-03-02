@@ -666,6 +666,11 @@
         reactionStyle = section.reaction_style || 'explosive';
         reactionCounts = {};
         reactionTotal = 0;
+        // Inicializar conteos por indice
+        var sectionEmojis = section.emojis || [];
+        for (var ei = 0; ei < sectionEmojis.length; ei++) {
+            reactionCounts[ei] = 0;
+        }
         lastEnergyMilestone = 0;
         if (matrixInterval) { clearInterval(matrixInterval); matrixInterval = null; }
 
@@ -708,7 +713,7 @@
             var btn = document.createElement('button');
             btn.className = 'reaction-btn';
             btn.textContent = emojis[i];
-            btn.addEventListener('click', (function (emoji) {
+            btn.addEventListener('click', (function (emoji, idx) {
                 return function (e) {
                     // Ripple effect on button
                     var rect = e.currentTarget.getBoundingClientRect();
@@ -719,9 +724,9 @@
                     ripple.style.width = ripple.style.height = Math.max(rect.width, rect.height) + 'px';
                     e.currentTarget.appendChild(ripple);
                     setTimeout(function () { if (ripple.parentNode) ripple.remove(); }, 500);
-                    sendReaction(emoji);
+                    sendReaction(emoji, idx);
                 };
-            })(emojis[i]));
+            })(emojis[i], i));
             buttonsContainer.appendChild(btn);
         }
 
@@ -736,8 +741,8 @@
         var raceColors = ['#3b82f6','#ef4444','#22c55e','#eab308','#8b5cf6','#ec4899','#06b6d4','#f97316'];
         var html = '';
         for (var i = 0; i < emojis.length; i++) {
-            reactionCounts[emojis[i]] = 0;
-            html += '<div class="race-row" data-emoji="' + emojis[i] + '">' +
+            reactionCounts[i] = 0;
+            html += '<div class="race-row" data-index="' + i + '">' +
                 '<span class="race-emoji">' + emojis[i] + '</span>' +
                 '<div class="race-bar-wrap"><div class="race-bar" style="width:4px;background:' + raceColors[i % raceColors.length] + '"></div></div>' +
                 '<span class="race-count">0</span>' +
@@ -750,12 +755,12 @@
         var rows = document.querySelectorAll('.race-row');
         if (!rows.length) return;
         var maxCount = 1;
-        for (var e in reactionCounts) {
-            if (reactionCounts[e] > maxCount) maxCount = reactionCounts[e];
+        for (var idx in reactionCounts) {
+            if (reactionCounts[idx] > maxCount) maxCount = reactionCounts[idx];
         }
         rows.forEach(function (row) {
-            var emoji = row.getAttribute('data-emoji');
-            var count = reactionCounts[emoji] || 0;
+            var idx = parseInt(row.getAttribute('data-index'));
+            var count = reactionCounts[idx] || 0;
             var bar = row.querySelector('.race-bar');
             var countEl = row.querySelector('.race-count');
             var pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
@@ -821,11 +826,16 @@
 
         if (counterEl) counterEl.textContent = reactionTotal;
 
-        // Dominant emoji
+        // Dominant emoji (by index)
+        var section = state.sections[state.currentSection];
+        var emojis = section ? (section.emojis || []) : [];
         var dominant = '✨';
         var maxC = 0;
-        for (var e in reactionCounts) {
-            if (reactionCounts[e] > maxC) { maxC = reactionCounts[e]; dominant = e; }
+        for (var idx in reactionCounts) {
+            if (reactionCounts[idx] > maxC) {
+                maxC = reactionCounts[idx];
+                dominant = emojis[parseInt(idx)] || '✨';
+            }
         }
         if (emojiCenter) emojiCenter.textContent = dominant;
 
@@ -905,19 +915,19 @@
         }
     }
 
-    async function sendReaction(emoji) {
+    async function sendReaction(emoji, idx) {
         // Efecto local inmediato según estilo
         if (reactionStyle === 'explosive') {
             spawnReactionBurst(emoji, true);
         } else if (reactionStyle === 'race') {
-            reactionCounts[emoji] = (reactionCounts[emoji] || 0) + 1;
+            reactionCounts[idx] = (reactionCounts[idx] || 0) + 1;
             reactionTotal++;
             updateRace();
         } else if (reactionStyle === 'mosaic') {
             reactionTotal++;
             addMosaicCell(emoji);
         } else if (reactionStyle === 'energy') {
-            reactionCounts[emoji] = (reactionCounts[emoji] || 0) + 1;
+            reactionCounts[idx] = (reactionCounts[idx] || 0) + 1;
             reactionTotal++;
             updateEnergy();
         } else if (reactionStyle === 'matrix') {
@@ -947,33 +957,34 @@
     }
 
     function normalizeEmoji(s) {
-        // Strip variation selectors (FE0E/FE0F) for comparison
-        return s.replace(/[\uFE0E\uFE0F]/g, '');
+        // Strip variation selectors and zero-width joiners for comparison
+        return s.replace(/[\uFE0E\uFE0F\u200D]/g, '').replace(/[\u{1F3FB}-\u{1F3FF}]/gu, '');
+    }
+
+    function emojiToIndex(serverEmoji) {
+        var section = state.sections[state.currentSection];
+        var emojis = section ? (section.emojis || []) : [];
+        var norm = normalizeEmoji(serverEmoji);
+        for (var i = 0; i < emojis.length; i++) {
+            if (normalizeEmoji(emojis[i]) === norm) return i;
+        }
+        return -1;
     }
 
     function syncReactionCounts(counts, total) {
         if (counts) {
             var section = state.sections[state.currentSection];
-            var sectionEmojis = section ? (section.emojis || []) : [];
+            var emojis = section ? (section.emojis || []) : [];
             reactionCounts = {};
-            // Initialize all section emojis to 0
-            for (var j = 0; j < sectionEmojis.length; j++) {
-                reactionCounts[sectionEmojis[j]] = 0;
+            // Initialize all indices to 0
+            for (var j = 0; j < emojis.length; j++) {
+                reactionCounts[j] = 0;
             }
-            // Map server counts to section emojis using normalized comparison
+            // Map server counts to indices
             for (var i = 0; i < counts.length; i++) {
-                var serverEmoji = counts[i].emoji;
-                var serverNorm = normalizeEmoji(serverEmoji);
-                var matched = false;
-                for (var k = 0; k < sectionEmojis.length; k++) {
-                    if (normalizeEmoji(sectionEmojis[k]) === serverNorm) {
-                        reactionCounts[sectionEmojis[k]] = parseInt(counts[i].count);
-                        matched = true;
-                        break;
-                    }
-                }
-                if (!matched) {
-                    reactionCounts[serverEmoji] = parseInt(counts[i].count);
+                var idx = emojiToIndex(counts[i].emoji);
+                if (idx >= 0) {
+                    reactionCounts[idx] = parseInt(counts[i].count);
                 }
             }
         }
