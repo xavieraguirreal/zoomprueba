@@ -166,11 +166,17 @@
         .btn-remove-option:hover { opacity: 0.7; }
 
         /* ---- Emoji list ---- */
-        .emoji-list { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-top: 0.5rem; }
-        .emoji-tag { display: inline-flex; align-items: center; gap: 0.25rem; background: #f8fafc; border: 1px solid var(--border); border-radius: 999px; padding: 0.25rem 0.5rem; font-size: 1.125rem; }
+        .emoji-list { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-top: 0.5rem; min-height: 2rem; }
+        .emoji-tag { display: inline-flex; align-items: center; gap: 0.25rem; background: #eff6ff; border: 1px solid var(--primary); border-radius: 999px; padding: 0.25rem 0.5rem; font-size: 1.125rem; }
         .emoji-tag button { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 0.75rem; line-height: 1; }
-        .add-emoji-row { display: flex; gap: 0.375rem; margin-top: 0.5rem; }
-        .add-emoji-row input { width: 60px; padding: 0.375rem; border: 1px solid var(--border); border-radius: 4px; font-size: 1.125rem; text-align: center; }
+
+        /* ---- Emoji picker ---- */
+        .emoji-picker-wrap { background: #f8fafc; border: 1px solid var(--border); border-radius: var(--radius); padding: 0.625rem; margin-top: 0.25rem; max-height: 220px; overflow-y: auto; }
+        .emoji-picker-cat { font-size: 0.6875rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin: 0.375rem 0 0.25rem; }
+        .emoji-picker-cat:first-child { margin-top: 0; }
+        .emoji-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); gap: 2px; }
+        .emoji-pick-btn { background: none; border: 1px solid transparent; border-radius: 6px; font-size: 1.25rem; cursor: pointer; padding: 4px; line-height: 1; text-align: center; transition: background 0.15s, border-color 0.15s, transform 0.1s; }
+        .emoji-pick-btn:hover { background: #e0e7ff; border-color: var(--primary); transform: scale(1.15); }
 
         /* ---- Toast ---- */
         #toast {

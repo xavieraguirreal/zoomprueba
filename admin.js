@@ -86,9 +86,10 @@ document.addEventListener('click', function(e) {
         addQuizOption();
         return;
     }
-    // Add emoji
-    if (target.closest('#btn-add-emoji')) {
-        addEmoji();
+    // Add emoji from picker grid
+    if (target.closest('.emoji-pick-btn')) {
+        var btn = target.closest('.emoji-pick-btn');
+        addEmojiFromPicker(btn.getAttribute('data-emoji'));
         return;
     }
     // Toggle active
@@ -669,6 +670,13 @@ function addQuizOption() {
     list.appendChild(div.firstElementChild);
 }
 
+var EMOJI_CATALOG = [
+    { cat: 'Caras', emojis: ['\uD83D\uDE00','\uD83D\uDE02','\uD83D\uDE0D','\uD83E\uDD29','\uD83E\uDD2F','\uD83D\uDE0E','\uD83E\uDD13','\uD83D\uDE09','\uD83D\uDE0A','\uD83E\uDD17','\uD83E\uDD14','\uD83D\uDE31','\uD83D\uDE34','\uD83E\uDD75','\uD83E\uDD76'] },
+    { cat: 'Gestos', emojis: ['\uD83D\uDC4D','\uD83D\uDC4E','\uD83D\uDC4F','\uD83D\uDE4C','\uD83D\uDCAA','\u270C\uFE0F','\uD83E\uDD1E','\uD83E\uDD19','\u270B','\uD83D\uDC4B','\uD83E\uDD1D','\uD83D\uDE4F'] },
+    { cat: 'Objetos', emojis: ['\uD83D\uDD25','\u2764\uFE0F','\u2B50','\uD83C\uDF1F','\uD83D\uDCA1','\uD83C\uDF89','\uD83C\uDF8A','\uD83D\uDCDA','\uD83D\uDCBB','\uD83C\uDFAF','\uD83C\uDFC6','\uD83D\uDE80','\uD83D\uDCA3','\uD83D\uDCA5','\uD83C\uDFB5'] },
+    { cat: 'Naturaleza', emojis: ['\uD83C\uDF08','\u2600\uFE0F','\uD83C\uDF19','\u26A1','\uD83C\uDF3A','\uD83C\uDF35','\uD83C\uDF3B','\uD83C\uDF40','\uD83E\uDD8B','\uD83D\uDC36','\uD83D\uDC31','\uD83E\uDD84'] },
+];
+
 function renderReactionsFields(container, config) {
     var emojis = config.emojis || [];
     var reactionStyle = config.reaction_style || 'explosive';
@@ -682,37 +690,39 @@ function renderReactionsFields(container, config) {
             '<option value="matrix"' + (reactionStyle === 'matrix' ? ' selected' : '') + '>Matrix (lluvia de emojis)</option>' +
         '</select>' +
     '</div>';
-    html += '<label style="font-size:0.8125rem;font-weight:500;margin-bottom:0.25rem;display:block">Emojis *</label>';
+    html += '<label style="font-size:0.8125rem;font-weight:500;margin-bottom:0.25rem;display:block">Emojis seleccionados *</label>';
     html += '<div class="emoji-list" id="emoji-list">';
     emojis.forEach(function(em) {
         html += '<span class="emoji-tag">' + em + '<button type="button" class="btn-remove-emoji">&times;</button></span>';
     });
     html += '</div>';
-    html += '<div class="add-emoji-row">' +
-        '<input type="text" id="new-emoji" placeholder="\uD83D\uDE00" maxlength="4">' +
-        '<button type="button" class="btn btn-outline btn-sm" id="btn-add-emoji">Agregar</button>' +
-    '</div>';
-    container.innerHTML = html;
-
-    setTimeout(function() {
-        var inp = document.getElementById('new-emoji');
-        if (inp) inp.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') { e.preventDefault(); addEmoji(); }
+    // Emoji picker grid
+    html += '<label style="font-size:0.8125rem;font-weight:500;margin:0.75rem 0 0.25rem;display:block">Agregar emojis</label>';
+    html += '<div class="emoji-picker-wrap">';
+    EMOJI_CATALOG.forEach(function(group) {
+        html += '<div class="emoji-picker-cat">' + group.cat + '</div>';
+        html += '<div class="emoji-picker-grid">';
+        group.emojis.forEach(function(em) {
+            html += '<button type="button" class="emoji-pick-btn" data-emoji="' + em + '">' + em + '</button>';
         });
-    }, 0);
+        html += '</div>';
+    });
+    html += '</div>';
+    container.innerHTML = html;
 }
 
-function addEmoji() {
-    var inp = document.getElementById('new-emoji');
-    var val = inp.value.trim();
-    if (!val) return;
+function addEmojiFromPicker(emoji) {
+    // Check if already added
+    var existing = [];
+    document.querySelectorAll('#emoji-list .emoji-tag').forEach(function(tag) {
+        existing.push(tag.firstChild.textContent.trim());
+    });
+    if (existing.indexOf(emoji) !== -1) return;
     var list = document.getElementById('emoji-list');
     var span = document.createElement('span');
     span.className = 'emoji-tag';
-    span.innerHTML = val + '<button type="button" class="btn-remove-emoji">&times;</button>';
+    span.innerHTML = emoji + '<button type="button" class="btn-remove-emoji">&times;</button>';
     list.appendChild(span);
-    inp.value = '';
-    inp.focus();
 }
 
 function removeOption(btn) {
