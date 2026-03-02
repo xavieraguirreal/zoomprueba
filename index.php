@@ -127,12 +127,13 @@ $version = time(); // cache-bust dinamico
 
         <!-- Reacciones -->
         <div id="reactions-screen" class="screen hidden">
-            <div class="card">
+            <div id="reactions-stage" class="reactions-stage"></div>
+            <div id="reactions-flash" class="reactions-flash"></div>
+            <div class="card reactions-card">
                 <div id="host-controls-reactions" class="host-controls hidden">
                     <button class="btn-host btn-back" id="btn-back-menu-reactions">Volver al menu</button>
                 </div>
                 <h1 class="question" id="reactions-title"></h1>
-                <div id="reactions-stage" class="reactions-stage"></div>
                 <div id="reactions-buttons" class="reactions-buttons"></div>
             </div>
         </div>

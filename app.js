@@ -667,7 +667,18 @@
             btn.className = 'reaction-btn';
             btn.textContent = emojis[i];
             btn.addEventListener('click', (function (emoji) {
-                return function () { sendReaction(emoji); };
+                return function (e) {
+                    // Ripple effect on button
+                    var rect = e.currentTarget.getBoundingClientRect();
+                    var ripple = document.createElement('span');
+                    ripple.className = 'reaction-btn-ripple';
+                    ripple.style.left = (e.clientX - rect.left) + 'px';
+                    ripple.style.top = (e.clientY - rect.top) + 'px';
+                    ripple.style.width = ripple.style.height = Math.max(rect.width, rect.height) + 'px';
+                    e.currentTarget.appendChild(ripple);
+                    setTimeout(function () { if (ripple.parentNode) ripple.remove(); }, 500);
+                    sendReaction(emoji);
+                };
             })(emojis[i]));
             buttonsContainer.appendChild(btn);
         }
@@ -677,8 +688,8 @@
     }
 
     async function sendReaction(emoji) {
-        // Animacion local inmediata
-        spawnReactionFloat(emoji);
+        // Burst local inmediato (multiple emojis)
+        spawnReactionBurst(emoji, true);
 
         try {
             await fetch('api.php', {
@@ -696,19 +707,90 @@
         }
     }
 
-    function spawnReactionFloat(emoji) {
+    var reactionTypes = ['reaction-float-up', 'reaction-float-burst', 'reaction-float-pop', 'reaction-float-rain'];
+
+    function spawnReactionBurst(emoji, isLocal) {
         var stage = $('reactions-stage');
         if (!stage) return;
 
+        // Flash effect
+        var flash = $('reactions-flash');
+        if (flash) {
+            flash.style.setProperty('--fx', (Math.random() * 60 + 20) + '%');
+            flash.style.setProperty('--fy', (Math.random() * 40 + 30) + '%');
+            flash.classList.add('flash-active');
+            setTimeout(function () { flash.classList.remove('flash-active'); }, 150);
+        }
+
+        // How many to spawn: local taps get more
+        var count = isLocal ? (3 + Math.floor(Math.random() * 3)) : (2 + Math.floor(Math.random() * 2));
+
+        for (var i = 0; i < count; i++) {
+            (function (idx) {
+                setTimeout(function () {
+                    spawnSingleReaction(stage, emoji, idx === 0);
+                }, idx * 60);
+            })(i);
+        }
+    }
+
+    function spawnSingleReaction(stage, emoji, isPrimary) {
         var span = document.createElement('span');
-        span.className = 'reaction-float';
+        var type = isPrimary
+            ? reactionTypes[Math.floor(Math.random() * 2)] // up or burst for primary
+            : reactionTypes[Math.floor(Math.random() * reactionTypes.length)];
+        span.className = 'reaction-float ' + type;
         span.textContent = emoji;
-        span.style.left = (Math.random() * 80 + 10) + '%';
+
+        // Random size
+        var size = isPrimary ? (2.5 + Math.random() * 2) : (1.2 + Math.random() * 2.5);
+        span.style.fontSize = size + 'rem';
+        span.style.setProperty('--sc', (0.8 + Math.random() * 0.6).toFixed(2));
+
+        // Duration variation
+        var dur = (1.5 + Math.random() * 1.5).toFixed(1);
+        span.style.setProperty('--dur', dur + 's');
+
+        // Sway direction
+        var sway = (Math.random() > 0.5 ? 1 : -1) * (10 + Math.random() * 25);
+        span.style.setProperty('--sw', sway + 'deg');
+
+        // Position
+        if (type === 'reaction-float-burst') {
+            // Start from center area, explode outward
+            span.style.left = (35 + Math.random() * 30) + '%';
+            span.style.top = (40 + Math.random() * 20) + '%';
+            var bx = (Math.random() - 0.5) * 200;
+            var by = -30 - Math.random() * 150;
+            span.style.setProperty('--bx', bx + 'px');
+            span.style.setProperty('--by', by + 'px');
+            span.style.setProperty('--br', ((Math.random() - 0.5) * 60) + 'deg');
+        } else if (type === 'reaction-float-pop') {
+            // Pop in random spot
+            span.style.left = (10 + Math.random() * 80) + '%';
+            span.style.top = (15 + Math.random() * 50) + '%';
+            span.style.setProperty('--sc', (1.5 + Math.random() * 1.5).toFixed(2));
+        } else if (type === 'reaction-float-rain') {
+            // Start from top
+            span.style.left = (5 + Math.random() * 90) + '%';
+            span.style.top = (-5 - Math.random() * 10) + '%';
+        } else {
+            // Float up from bottom area
+            span.style.left = (5 + Math.random() * 90) + '%';
+            span.style.bottom = '5%';
+        }
+
         stage.appendChild(span);
 
+        var lifetime = parseFloat(dur) * 1000 + 200;
         setTimeout(function () {
             if (span.parentNode) span.parentNode.removeChild(span);
-        }, 2500);
+        }, lifetime);
+    }
+
+    // Legacy compat: polling uses spawnReactionFloat
+    function spawnReactionFloat(emoji) {
+        spawnReactionBurst(emoji, false);
     }
 
     async function fetchReactions() {

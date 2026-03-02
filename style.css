@@ -547,35 +547,88 @@ body {
 }
 
 /* ========================================
-   Reactions
+   Reactions - Explosive mode
    ======================================== */
-.reactions-stage {
+#reactions-screen {
     position: relative;
-    height: 300px;
+}
+
+.reactions-stage {
+    position: fixed;
+    inset: 0;
     overflow: hidden;
-    margin-bottom: 16px;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.reactions-flash {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9;
+    opacity: 0;
+    transition: opacity 0.08s;
+}
+
+.reactions-flash.flash-active {
+    opacity: 1;
+    background: radial-gradient(circle at var(--fx, 50%) var(--fy, 50%), rgba(255,255,255,0.12) 0%, transparent 60%);
+}
+
+.reactions-card {
+    position: relative;
+    z-index: 20;
 }
 
 .reaction-float {
     position: absolute;
-    bottom: 0;
-    font-size: 2rem;
-    animation: float-up 2.5s ease-out forwards;
     pointer-events: none;
+    will-change: transform, opacity;
+    filter: drop-shadow(0 0 6px rgba(255,255,255,0.3));
 }
 
-@keyframes float-up {
-    0% {
-        transform: translateY(0) scale(1);
-        opacity: 1;
-    }
-    70% {
-        opacity: 1;
-    }
-    100% {
-        transform: translateY(-300px) scale(0.6);
-        opacity: 0;
-    }
+/* Animation type A: float up with sway */
+.reaction-float-up {
+    animation: rxnFloatUp var(--dur, 2.5s) cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+@keyframes rxnFloatUp {
+    0%   { transform: translateY(0) scale(var(--sc, 1)) rotate(0deg); opacity: 1; }
+    25%  { transform: translateY(-25vh) scale(var(--sc, 1)) rotate(var(--sw, 15deg)); }
+    50%  { transform: translateY(-50vh) scale(var(--sc, 1)) rotate(calc(var(--sw, 15deg) * -0.5)); }
+    75%  { opacity: 0.8; }
+    100% { transform: translateY(-90vh) scale(calc(var(--sc, 1) * 0.4)) rotate(var(--sw, 15deg)); opacity: 0; }
+}
+
+/* Animation type B: explode outward */
+.reaction-float-burst {
+    animation: rxnBurst var(--dur, 1.8s) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes rxnBurst {
+    0%   { transform: translate(0, 0) scale(0.3) rotate(0deg); opacity: 1; }
+    30%  { transform: translate(var(--bx, 50px), var(--by, -80px)) scale(var(--sc, 1.2)) rotate(var(--br, 30deg)); opacity: 1; }
+    100% { transform: translate(calc(var(--bx, 50px) * 2.5), calc(var(--by, -80px) * 2.5)) scale(0.2) rotate(calc(var(--br, 30deg) * 3)); opacity: 0; }
+}
+
+/* Animation type C: big pop and fade */
+.reaction-float-pop {
+    animation: rxnPop var(--dur, 1.4s) cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+@keyframes rxnPop {
+    0%   { transform: scale(0); opacity: 0; }
+    25%  { transform: scale(var(--sc, 2)); opacity: 1; }
+    60%  { transform: scale(calc(var(--sc, 2) * 0.85)); opacity: 0.9; }
+    100% { transform: scale(calc(var(--sc, 2) * 1.1)); opacity: 0; }
+}
+
+/* Animation type D: gravity drop with bounce */
+.reaction-float-rain {
+    animation: rxnRain var(--dur, 2s) cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes rxnRain {
+    0%   { transform: translateY(0) scale(var(--sc, 1)) rotate(0deg); opacity: 1; }
+    60%  { transform: translateY(60vh) scale(var(--sc, 1)) rotate(var(--sw, 20deg)); opacity: 1; }
+    75%  { transform: translateY(50vh) scale(calc(var(--sc, 1) * 1.1)) rotate(calc(var(--sw, 20deg) * -0.5)); opacity: 0.8; }
+    100% { transform: translateY(70vh) scale(calc(var(--sc, 1) * 0.5)) rotate(var(--sw, 20deg)); opacity: 0; }
 }
 
 .reactions-buttons {
@@ -586,23 +639,40 @@ body {
 
 .reaction-btn {
     padding: 16px;
-    font-size: 2rem;
+    font-size: 2.2rem;
     background: #1a2038;
     border: 2px solid #252d48;
-    border-radius: 12px;
+    border-radius: 16px;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all 0.12s ease;
     line-height: 1;
+    position: relative;
+    overflow: hidden;
 }
 
 .reaction-btn:hover {
     border-color: #3b82f6;
     background: #1e2642;
-    transform: scale(1.1);
+    transform: scale(1.08);
 }
 
 .reaction-btn:active {
-    transform: scale(0.95);
+    transform: scale(0.9);
+    border-color: #60a5fa;
+    box-shadow: 0 0 20px rgba(59,130,246,0.3);
+}
+
+.reaction-btn-ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.25);
+    transform: scale(0);
+    animation: btnRipple 0.5s ease-out forwards;
+    pointer-events: none;
+}
+
+@keyframes btnRipple {
+    to { transform: scale(3); opacity: 0; }
 }
 
 /* ========================================
@@ -945,9 +1015,6 @@ body {
     .wordcloud-input button {
         padding: 9px 14px;
         font-size: 0.8rem;
-    }
-    .reactions-stage {
-        height: 220px;
     }
     .reactions-buttons {
         grid-template-columns: repeat(3, 1fr);
