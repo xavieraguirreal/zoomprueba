@@ -192,6 +192,23 @@
 
         .correct-label { display: flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; color: var(--muted); cursor: pointer; white-space: nowrap; }
         .correct-label input[type="radio"] { accent-color: var(--success); }
+
+        /* ---- Toggle inline (table) ---- */
+        .toggle-inline { cursor: pointer; }
+
+        /* ---- Stats modal ---- */
+        .stats-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1.25rem; }
+        .stats-card { background: #f8fafc; border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem; text-align: center; }
+        .stats-num { display: block; font-size: 1.5rem; font-weight: 700; color: var(--primary); }
+        .stats-label { display: block; font-size: 0.75rem; color: var(--muted); margin-top: 0.125rem; }
+        .stats-chart { display: flex; flex-direction: column; gap: 0.375rem; max-height: 350px; overflow-y: auto; }
+        .stats-row { display: grid; grid-template-columns: 30px 1fr 120px 40px; align-items: center; gap: 0.5rem; padding: 0.375rem 0.5rem; font-size: 0.8125rem; }
+        .stats-row:nth-child(odd) { background: #f8fafc; border-radius: 4px; }
+        .stats-pos { color: var(--muted); font-weight: 600; text-align: center; }
+        .stats-word { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .stats-bar-wrap { background: #e2e8f0; border-radius: 4px; height: 18px; overflow: hidden; }
+        .stats-bar { height: 100%; background: var(--primary); border-radius: 4px; transition: width 0.4s ease; }
+        .stats-count { text-align: right; font-weight: 700; color: var(--muted); }
     </style>
 </head>
 <body>
@@ -296,6 +313,18 @@
         <div class="form-actions" style="justify-content:center">
             <button class="btn btn-outline" id="btn-cancel-delete">Cancelar</button>
             <button class="btn btn-danger" id="btn-confirm-delete">Eliminar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ======== Stats Modal ======== -->
+<div id="modal-stats" class="overlay">
+    <div class="modal">
+        <h2>Estadisticas - Nube de palabras</h2>
+        <div id="stats-content"></div>
+        <div class="form-actions">
+            <button class="btn btn-outline" id="btn-close-stats">Cerrar</button>
+            <button class="btn btn-primary" id="btn-share-results" data-key="">Compartir resultados</button>
         </div>
     </div>
 </div>

@@ -41,13 +41,14 @@
     const $quizLeaderboardScreen = $('quiz-leaderboard-screen');
     const $scaleScreen = $('scale-screen');
     const $scaleResultsScreen = $('scale-results-screen');
+    const $wordcloudResultsScreen = $('wordcloud-results-screen');
     const $statusBar = $('status-bar');
     const $statusText = $('status-text');
 
     const allScreens = [
         $loadingScreen, $menuScreen, $surveyScreen, $resultsScreen, $greetingScreen,
         $wordcloudScreen, $reactionsScreen, $quizScreen, $quizLeaderboardScreen,
-        $scaleScreen, $scaleResultsScreen,
+        $scaleScreen, $scaleResultsScreen, $wordcloudResultsScreen,
     ];
 
     // ---- Helpers ----
@@ -221,7 +222,11 @@
                 renderGreeting(section);
                 break;
             case 'wordcloud':
-                renderWordCloud(section, sectionId, status);
+                if (status === 'closed' && !state.isHost) {
+                    loadWordCloudResults(sectionId);
+                } else {
+                    renderWordCloud(section, sectionId, status);
+                }
                 break;
             case 'reactions':
                 renderReactions(section);
@@ -356,6 +361,7 @@
     }
 
     var wordcloudColors = ['#3b82f6', '#ef4444', '#22c55e', '#eab308', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#f43f5e'];
+    var rotationPool = [0, 0, 0, 90, 0, -8, 0, 5, 0, 0, -5, 90, 0, 8, 0];
     var wordcloudLastHash = ''; // to detect changes
     var wordcloudPrevWords = {}; // track previous words for new-word detection
     var wordcloudLastChangeTime = 0;
@@ -440,14 +446,22 @@
             var fontSize = Math.max(0.75, (0.9 + ratio * 2.2) * scale);
             var color = wordcloudColors[j % wordcloudColors.length];
 
+            // Pick rotation: first word always 0
+            var angle = j === 0 ? 0 : rotationPool[j % rotationPool.length];
+            var angleRad = angle * Math.PI / 180;
+
             // Measure using a hidden element for accuracy
             var measure = document.createElement('span');
             measure.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;font-weight:700;font-size:' + fontSize + 'rem;font-family:inherit;';
             measure.textContent = w.word;
             document.body.appendChild(measure);
-            var estW = measure.offsetWidth + 10;
-            var estH = measure.offsetHeight + 6;
+            var measW = measure.offsetWidth + 10;
+            var measH = measure.offsetHeight + 6;
             document.body.removeChild(measure);
+
+            // Bounding box for rotated element
+            var bboxW = Math.abs(measW * Math.cos(angleRad)) + Math.abs(measH * Math.sin(angleRad));
+            var bboxH = Math.abs(measW * Math.sin(angleRad)) + Math.abs(measH * Math.cos(angleRad));
 
             var span = document.createElement('span');
             span.className = 'wordcloud-word' + (j === 0 ? ' wordcloud-word-top' : '');
@@ -455,14 +469,16 @@
             span.textContent = w.word;
             span.style.fontSize = fontSize + 'rem';
             span.style.color = color;
+            span.style.setProperty('--rotate', angle + 'deg');
             span.style.animationDuration = baseSpeed + 's';
             span.style.animationDelay = (j * stagger) + 's';
 
-            var pos = placeWord(placed, cloudWidth, cloudHeight, estW, estH);
-            span.style.left = pos.x + 'px';
-            span.style.top = pos.y + 'px';
+            var pos = placeWord(placed, cloudWidth, cloudHeight, bboxW, bboxH);
+            // Adjust left/top to center the actual element within the bounding box
+            span.style.left = (pos.x + (bboxW - measW) / 2) + 'px';
+            span.style.top = (pos.y + (bboxH - measH) / 2) + 'px';
 
-            placed.push({ x: pos.x, y: pos.y, w: estW, h: estH });
+            placed.push({ x: pos.x, y: pos.y, w: bboxW, h: bboxH });
             cloud.appendChild(span);
         }
     }
@@ -555,6 +571,61 @@
         } catch (err) {
             console.error('Error submitting word:', err);
         }
+    }
+
+    // ---- Word Cloud: resultados (barras) ----
+
+    async function loadWordCloudResults(sectionId) {
+        try {
+            var res = await fetch(
+                'api.php?action=get_words&meeting_id=' + encodeURIComponent(state.meetingId) +
+                '&section_id=' + encodeURIComponent(sectionId)
+            );
+            var data = await res.json();
+            showWordCloudResults(data.words || [], sectionId);
+        } catch (err) {
+            console.error('Error loading wordcloud results:', err);
+        }
+    }
+
+    function showWordCloudResults(words, sectionId) {
+        var section = state.sections[sectionId];
+        $('wordcloud-results-title').textContent = 'Resultados: ' + (section ? section.title : '');
+
+        var chart = $('wordcloud-results-chart');
+        chart.innerHTML = '';
+
+        var totalWords = 0;
+        for (var i = 0; i < words.length; i++) totalWords += parseInt(words[i].count);
+        $('wordcloud-total-words').textContent = totalWords;
+
+        if (words.length === 0) {
+            chart.innerHTML = '<p style="color:#64748b;text-align:center;">No hay palabras</p>';
+            showScreen($wordcloudResultsScreen);
+            return;
+        }
+
+        var maxCount = parseInt(words[0].count); // already sorted desc
+        var barColors = wordcloudColors;
+
+        for (var j = 0; j < words.length; j++) {
+            var w = words[j];
+            var count = parseInt(w.count);
+            var percent = maxCount > 0 ? (count / maxCount) * 100 : 0;
+            var color = barColors[j % barColors.length];
+
+            var row = document.createElement('div');
+            row.className = 'result-row';
+            row.innerHTML =
+                '<div class="result-label"><span>' + escapeHtml(w.word) + '</span></div>' +
+                '<div class="result-bar-container">' +
+                    '<div class="result-bar" style="--bar-color: ' + color + '; width: ' + percent + '%"></div>' +
+                '</div>' +
+                '<span class="result-count">' + count + '</span>';
+            chart.appendChild(row);
+        }
+
+        showScreen($wordcloudResultsScreen);
     }
 
     // ============================================
@@ -1296,15 +1367,21 @@
             var sectionType = section.type;
 
             // Tipo-especifico
-            if (sectionType === 'wordcloud' && data.words) {
-                // Force re-layout if words changed (new submissions from others)
-                var pollHash = wordcloudHash(data.words);
-                if (pollHash !== wordcloudLastHash) {
-                    wordcloudForceRender = true;
+            if (sectionType === 'wordcloud') {
+                if (data.status === 'closed' && !state.isHost) {
+                    showWordCloudResults(data.words || [], state.currentSection);
+                    return;
                 }
-                renderWordCloudWords(data.words);
-                if (data.status === 'closed') {
-                    $('wordcloud-input-area').classList.add('hidden');
+                if (data.words) {
+                    // Force re-layout if words changed (new submissions from others)
+                    var pollHash = wordcloudHash(data.words);
+                    if (pollHash !== wordcloudLastHash) {
+                        wordcloudForceRender = true;
+                    }
+                    renderWordCloudWords(data.words);
+                    if (data.status === 'closed') {
+                        $('wordcloud-input-area').classList.add('hidden');
+                    }
                 }
             } else if (sectionType === 'reactions' && data.reactions) {
                 for (var i = 0; i < data.reactions.length; i++) {

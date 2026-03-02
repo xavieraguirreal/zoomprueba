@@ -106,6 +106,15 @@ $version = time(); // cache-bust dinamico
             </div>
         </div>
 
+        <!-- Resultados nube de palabras -->
+        <div id="wordcloud-results-screen" class="screen hidden">
+            <div class="card">
+                <h2 id="wordcloud-results-title" class="results-title"></h2>
+                <div id="wordcloud-results-chart" class="results-chart"></div>
+                <p class="total-votes">Total: <span id="wordcloud-total-words">0</span> palabras</p>
+            </div>
+        </div>
+
         <!-- Reacciones -->
         <div id="reactions-screen" class="screen hidden">
             <div class="card">

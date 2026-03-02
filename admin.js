@@ -12,6 +12,7 @@ var sections = [];
 var editingId = null;
 var deletingId = null;
 var currentBroadcast = null; // section_key de la seccion compartida
+var broadcastStatus = null; // 'voting' o 'closed'
 
 // ---- Bind all events ----
 try {
@@ -42,6 +43,13 @@ document.getElementById('modal-editor').addEventListener('click', function(e) {
 document.getElementById('modal-delete').addEventListener('click', function(e) {
     if (e.target === this) closeDeleteModal();
 });
+// Stats modal overlay click
+var statsModal = document.getElementById('modal-stats');
+if (statsModal) {
+    statsModal.addEventListener('click', function(e) {
+        if (e.target === this) closeStatsModal();
+    });
+}
 
 // Event delegation for dynamic buttons in table and forms
 document.addEventListener('click', function(e) {
@@ -83,15 +91,43 @@ document.addEventListener('click', function(e) {
         addEmoji();
         return;
     }
+    // Toggle active
+    if (target.closest('.btn-toggle-active')) {
+        var id = parseInt(target.closest('.btn-toggle-active').getAttribute('data-id'));
+        toggleActive(id);
+        return;
+    }
     // Broadcast (compartir)
     if (target.closest('.btn-broadcast')) {
         var key = target.closest('.btn-broadcast').getAttribute('data-key');
         setBroadcast(key);
         return;
     }
+    // Close broadcast (cerrar sin detener)
+    if (target.closest('.btn-close-broadcast')) {
+        closeBroadcast();
+        return;
+    }
     // Stop broadcast
     if (target.closest('.btn-stop-broadcast')) {
         stopBroadcast();
+        return;
+    }
+    // Stats
+    if (target.closest('.btn-stats')) {
+        var key = target.closest('.btn-stats').getAttribute('data-key');
+        openStatsModal(key);
+        return;
+    }
+    // Close stats modal
+    if (target.closest('#btn-close-stats')) {
+        closeStatsModal();
+        return;
+    }
+    // Share results from stats modal
+    if (target.closest('#btn-share-results')) {
+        var key = target.closest('#btn-share-results').getAttribute('data-key');
+        shareResults(key);
         return;
     }
 });
@@ -157,6 +193,7 @@ function loadSections() {
     api('admin_sections').then(function(data) {
         sections = data.sections;
         currentBroadcast = data.broadcast || null;
+        broadcastStatus = data.broadcast_status || null;
         renderTable();
     }).catch(function(e) {
         toast(e.message, true);
@@ -177,15 +214,25 @@ function renderTable() {
                 ? '<button class="btn btn-sm btn-stop-broadcast" title="Dejar de compartir" style="background:#22c55e;color:#fff;font-size:0.7rem">&#9654; EN VIVO</button>'
                 : '<button class="btn btn-ghost btn-sm btn-broadcast" data-key="' + esc(s.section_key) + '" title="Compartir">&#9654;</button>')
             : '';
+        var statsBtn = s.type === 'wordcloud'
+            ? '<button class="btn btn-ghost btn-sm btn-stats" data-key="' + esc(s.section_key) + '" title="Estadisticas">&#128202;</button>'
+            : '';
+        var toggleChecked = s.is_active == 1 ? ' checked' : '';
+        var toggleHtml = '<label class="toggle toggle-inline" style="display:inline-block;vertical-align:middle">' +
+            '<span style="position:relative;width:36px;height:20px;display:inline-block">' +
+                '<input type="checkbox" class="btn-toggle-active" data-id="' + s.id + '"' + toggleChecked + '>' +
+                '<span class="slider"></span>' +
+            '</span></label>';
         return '<tr draggable="true" data-id="' + s.id + '"' + (isBc ? ' style="background:#f0fdf4"' : '') + '>' +
             '<td><span class="drag-handle" title="Arrastrar para reordenar">&#9776;</span></td>' +
             '<td style="font-size:1.25rem">' + esc(s.icon) + '</td>' +
             '<td><strong>' + esc(s.title) + '</strong></td>' +
             '<td><span class="type-badge type-' + s.type + '">' + (TYPE_LABELS[s.type] || s.type) + '</span></td>' +
             '<td><code style="font-size:0.8125rem">' + esc(s.section_key) + '</code></td>' +
-            '<td class="' + (s.is_active == 1 ? 'badge-active' : 'badge-inactive') + '">' + (s.is_active == 1 ? 'Si' : 'No') + '</td>' +
+            '<td>' + toggleHtml + '</td>' +
             '<td class="row-actions">' +
                 bcBtn +
+                statsBtn +
                 '<button class="btn btn-ghost btn-sm btn-edit" data-id="' + s.id + '" title="Editar">&#9998;</button>' +
                 '<button class="btn btn-ghost btn-sm btn-del" data-id="' + s.id + '" title="Eliminar" style="color:var(--danger)">&#10005;</button>' +
             '</td>' +
@@ -207,8 +254,12 @@ function renderBroadcastBar() {
     var bar = document.createElement('div');
     bar.id = 'broadcast-bar';
     bar.style.cssText = 'background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:0.75rem 1rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;';
-    bar.innerHTML = '<span style="color:#16a34a;font-weight:500">&#9654; En vivo: <strong>' + esc(s.title) + '</strong> (' + (TYPE_LABELS[s.type] || s.type) + ')</span>' +
-        '<button class="btn btn-sm btn-stop-broadcast" style="background:#ef4444;color:#fff">Detener</button>';
+    var statusLabel = broadcastStatus === 'closed' ? ' <span style="color:#ef4444;font-size:0.8rem">(Cerrada)</span>' : '';
+    var closeBtn = broadcastStatus !== 'closed'
+        ? '<button class="btn btn-sm btn-close-broadcast" style="background:#f59e0b;color:#fff;margin-right:0.5rem">Cerrar</button>'
+        : '';
+    bar.innerHTML = '<span style="color:#16a34a;font-weight:500">&#9654; En vivo: <strong>' + esc(s.title) + '</strong> (' + (TYPE_LABELS[s.type] || s.type) + ')' + statusLabel + '</span>' +
+        '<span>' + closeBtn + '<button class="btn btn-sm btn-stop-broadcast" style="background:#ef4444;color:#fff">Detener</button></span>';
     var tableWrap = document.querySelector('.table-wrap');
     tableWrap.parentNode.insertBefore(bar, tableWrap);
 }
@@ -325,8 +376,92 @@ function setBroadcast(sectionKey) {
 function stopBroadcast() {
     api('admin_stop_broadcast').then(function() {
         currentBroadcast = null;
+        broadcastStatus = null;
         renderTable();
         toast('Se dejo de compartir');
+    }).catch(function(e) {
+        toast(e.message, true);
+    });
+}
+
+function toggleActive(id) {
+    api('admin_toggle', { id: id }).then(function() {
+        loadSections();
+    }).catch(function(e) {
+        toast(e.message, true);
+    });
+}
+
+function closeBroadcast() {
+    api('admin_close_broadcast').then(function() {
+        broadcastStatus = 'closed';
+        renderTable();
+        toast('Seccion cerrada - usuarios ven resultados');
+    }).catch(function(e) {
+        toast(e.message, true);
+    });
+}
+
+function openStatsModal(sectionKey) {
+    var modal = document.getElementById('modal-stats');
+    if (!modal) return;
+    var content = document.getElementById('stats-content');
+    content.innerHTML = '<p style="color:var(--muted);text-align:center">Cargando...</p>';
+    document.getElementById('btn-share-results').setAttribute('data-key', sectionKey);
+    modal.classList.add('open');
+
+    api('admin_wordcloud_stats', { section_key: sectionKey }).then(function(data) {
+        var words = data.words || [];
+        var total = data.total_entries || 0;
+        var users = data.unique_users || 0;
+        var unique = words.length;
+
+        var html = '<div class="stats-summary">' +
+            '<div class="stats-card"><span class="stats-num">' + total + '</span><span class="stats-label">Palabras</span></div>' +
+            '<div class="stats-card"><span class="stats-num">' + users + '</span><span class="stats-label">Usuarios</span></div>' +
+            '<div class="stats-card"><span class="stats-num">' + unique + '</span><span class="stats-label">Unicas</span></div>' +
+        '</div>';
+
+        if (words.length > 0) {
+            var maxCount = parseInt(words[0].count);
+            html += '<div class="stats-chart">';
+            for (var i = 0; i < words.length; i++) {
+                var w = words[i];
+                var count = parseInt(w.count);
+                var pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                html += '<div class="stats-row">' +
+                    '<span class="stats-pos">' + (i + 1) + '</span>' +
+                    '<span class="stats-word">' + esc(w.word) + '</span>' +
+                    '<span class="stats-bar-wrap"><span class="stats-bar" style="width:' + pct + '%"></span></span>' +
+                    '<span class="stats-count">' + count + '</span>' +
+                '</div>';
+            }
+            html += '</div>';
+        } else {
+            html += '<p style="color:var(--muted);text-align:center;margin-top:1rem">No hay palabras aun</p>';
+        }
+
+        content.innerHTML = html;
+    }).catch(function(e) {
+        content.innerHTML = '<p style="color:var(--danger);text-align:center">' + esc(e.message) + '</p>';
+    });
+}
+
+function closeStatsModal() {
+    var modal = document.getElementById('modal-stats');
+    if (modal) modal.classList.remove('open');
+}
+
+function shareResults(sectionKey) {
+    // Broadcast the section then immediately close it -> users see results
+    api('admin_broadcast', { section_key: sectionKey }).then(function() {
+        return api('admin_close_broadcast');
+    }).then(function() {
+        currentBroadcast = sectionKey;
+        broadcastStatus = 'closed';
+        renderTable();
+        closeStatsModal();
+        toast('Resultados compartidos con usuarios');
     }).catch(function(e) {
         toast(e.message, true);
     });

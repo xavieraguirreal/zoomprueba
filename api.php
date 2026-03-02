@@ -518,12 +518,13 @@ try {
             }
             // Incluir seccion broadcast activa
             $bcStmt = $pdo->prepare(
-                "SELECT section_id FROM meeting_active_section WHERE meeting_id = 'broadcast'"
+                "SELECT section_id, status FROM meeting_active_section WHERE meeting_id = 'broadcast'"
             );
             $bcStmt->execute();
             $bcRow = $bcStmt->fetch();
             $broadcast = $bcRow ? $bcRow['section_id'] : null;
-            jsonResponse(['sections' => $result, 'broadcast' => $broadcast]);
+            $broadcastStatus = $bcRow ? $bcRow['status'] : null;
+            jsonResponse(['sections' => $result, 'broadcast' => $broadcast, 'broadcast_status' => $broadcastStatus]);
             break;
 
         // ---- Admin: crear o actualizar seccion ----
@@ -660,6 +661,40 @@ try {
             $stmt = $pdo->prepare("DELETE FROM meeting_active_section WHERE meeting_id = 'broadcast'");
             $stmt->execute();
             jsonResponse(['success' => true]);
+            break;
+
+        // ---- Admin: toggle activa/inactiva ----
+        case 'admin_toggle':
+            $id = (int) ($input['id'] ?? 0);
+            if (!$id) {
+                jsonResponse(['error' => 'Falta id'], 400);
+            }
+            $stmt = $pdo->prepare("UPDATE app_sections SET is_active = 1 - is_active WHERE id = ?");
+            $stmt->execute([$id]);
+            jsonResponse(['success' => true]);
+            break;
+
+        // ---- Admin: cerrar broadcast (sin input, pero sigue visible) ----
+        case 'admin_close_broadcast':
+            $stmt = $pdo->prepare("UPDATE meeting_active_section SET status = 'closed' WHERE meeting_id = 'broadcast'");
+            $stmt->execute();
+            jsonResponse(['success' => true]);
+            break;
+
+        // ---- Admin: estadisticas wordcloud ----
+        case 'admin_wordcloud_stats':
+            $sectionKey = $input['section_key'] ?? '';
+            if (!$sectionKey) {
+                jsonResponse(['error' => 'Falta section_key'], 400);
+            }
+            $words = getWordFrequencies($pdo, 'broadcast', $sectionKey, 0);
+            $totalEntries = $pdo->prepare("SELECT COUNT(*) FROM wordcloud_entries WHERE meeting_id = 'broadcast' AND section_id = ?");
+            $totalEntries->execute([$sectionKey]);
+            $total = (int) $totalEntries->fetchColumn();
+            $uniqueUsers = $pdo->prepare("SELECT COUNT(DISTINCT user_id) FROM wordcloud_entries WHERE meeting_id = 'broadcast' AND section_id = ?");
+            $uniqueUsers->execute([$sectionKey]);
+            $users = (int) $uniqueUsers->fetchColumn();
+            jsonResponse(['words' => $words, 'total_entries' => $total, 'unique_users' => $users]);
             break;
 
         // ---- Admin: reordenar secciones ----
