@@ -274,18 +274,18 @@ try {
             } elseif ($sectionType === 'reactions') {
                 $since = date('Y-m-d H:i:s', time() - 10);
                 $response['reactions'] = getRecentReactions($pdo, $meetingId, $since);
-                // Conteos agregados solo desde inicio de sesion
+                // Conteos agregados solo desde inicio de sesion (COLLATE utf8mb4_bin para distinguir emojis)
                 $sessionStart = $row['started_at'];
                 if ($sessionStart) {
                     $countStmt = $pdo->prepare(
-                        "SELECT emoji, COUNT(*) as count FROM reaction_events WHERE meeting_id = ? AND created_at >= ? GROUP BY emoji ORDER BY count DESC"
+                        "SELECT emoji COLLATE utf8mb4_bin as emoji, COUNT(*) as count FROM reaction_events WHERE meeting_id = ? AND created_at >= ? GROUP BY emoji COLLATE utf8mb4_bin ORDER BY count DESC"
                     );
                     $countStmt->execute([$meetingId, $sessionStart]);
                     $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM reaction_events WHERE meeting_id = ? AND created_at >= ?");
                     $totalStmt->execute([$meetingId, $sessionStart]);
                 } else {
                     $countStmt = $pdo->prepare(
-                        "SELECT emoji, COUNT(*) as count FROM reaction_events WHERE meeting_id = ? GROUP BY emoji ORDER BY count DESC"
+                        "SELECT emoji COLLATE utf8mb4_bin as emoji, COUNT(*) as count FROM reaction_events WHERE meeting_id = ? GROUP BY emoji COLLATE utf8mb4_bin ORDER BY count DESC"
                     );
                     $countStmt->execute([$meetingId]);
                     $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM reaction_events WHERE meeting_id = ?");
@@ -440,20 +440,20 @@ try {
                 "INSERT INTO reaction_events (meeting_id, emoji, user_id) VALUES (?, ?, ?)"
             );
             $stmt->execute([$meetingId, $emoji, $userId]);
-            // Conteos solo desde inicio de sesion
+            // Conteos solo desde inicio de sesion (COLLATE utf8mb4_bin para distinguir emojis)
             $sessionStmt = $pdo->prepare("SELECT started_at FROM meeting_active_section WHERE meeting_id = ?");
             $sessionStmt->execute([$meetingId]);
             $sessionStart = $sessionStmt->fetchColumn();
             if ($sessionStart) {
                 $countStmt = $pdo->prepare(
-                    "SELECT emoji, COUNT(*) as count FROM reaction_events WHERE meeting_id = ? AND created_at >= ? GROUP BY emoji ORDER BY count DESC"
+                    "SELECT emoji COLLATE utf8mb4_bin as emoji, COUNT(*) as count FROM reaction_events WHERE meeting_id = ? AND created_at >= ? GROUP BY emoji COLLATE utf8mb4_bin ORDER BY count DESC"
                 );
                 $countStmt->execute([$meetingId, $sessionStart]);
                 $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM reaction_events WHERE meeting_id = ? AND created_at >= ?");
                 $totalStmt->execute([$meetingId, $sessionStart]);
             } else {
                 $countStmt = $pdo->prepare(
-                    "SELECT emoji, COUNT(*) as count FROM reaction_events WHERE meeting_id = ? GROUP BY emoji ORDER BY count DESC"
+                    "SELECT emoji COLLATE utf8mb4_bin as emoji, COUNT(*) as count FROM reaction_events WHERE meeting_id = ? GROUP BY emoji COLLATE utf8mb4_bin ORDER BY count DESC"
                 );
                 $countStmt->execute([$meetingId]);
                 $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM reaction_events WHERE meeting_id = ?");
