@@ -48,6 +48,51 @@ body {
     font-size: 1.1rem;
 }
 
+/* ---- Idle (no activity) ---- */
+.idle-card {
+    text-align: center;
+    padding: 48px 24px;
+}
+
+.idle-logo {
+    font-size: 2.5rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 24px;
+}
+
+.idle-text {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    margin-bottom: 8px;
+}
+
+.idle-subtext {
+    font-size: 0.9rem;
+    color: #64748b;
+    line-height: 1.5;
+    margin-bottom: 28px;
+}
+
+.idle-pulse {
+    width: 12px;
+    height: 12px;
+    background: #3b82f6;
+    border-radius: 50%;
+    margin: 0 auto;
+    animation: idlePulse 2s ease-in-out infinite;
+}
+
+@keyframes idlePulse {
+    0%, 100% { opacity: 0.3; transform: scale(1); box-shadow: 0 0 0 0 rgba(59,130,246,0.4); }
+    50% { opacity: 1; transform: scale(1.2); box-shadow: 0 0 0 10px rgba(59,130,246,0); }
+}
+
 /* ---- Menu ---- */
 .menu-title {
     font-size: 1.4rem;

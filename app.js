@@ -31,6 +31,7 @@
     // ---- Elementos DOM fijos ----
     const $ = (id) => document.getElementById(id);
     const $loadingScreen = $('loading-screen');
+    const $idleScreen = $('idle-screen');
     const $menuScreen = $('menu-screen');
     const $surveyScreen = $('survey-screen');
     const $resultsScreen = $('results-screen');
@@ -46,7 +47,7 @@
     const $statusText = $('status-text');
 
     const allScreens = [
-        $loadingScreen, $menuScreen, $surveyScreen, $resultsScreen, $greetingScreen,
+        $loadingScreen, $idleScreen, $menuScreen, $surveyScreen, $resultsScreen, $greetingScreen,
         $wordcloudScreen, $reactionsScreen, $quizScreen, $quizLeaderboardScreen,
         $scaleScreen, $scaleResultsScreen, $wordcloudResultsScreen,
     ];
@@ -116,14 +117,25 @@
                 state.isHost = false;
                 state.currentSection = data.section_id;
                 navigateToSection(data.section_id, data.status, data);
-            } else {
+            } else if (state.isInZoom) {
+                // Inside Zoom: host sees the menu
                 state.isHost = true;
                 showMenu();
+            } else {
+                // Standalone (browser): show idle/waiting screen + poll for activity
+                state.isHost = false;
+                showScreen($idleScreen);
+                startIdlePolling();
             }
         } catch (err) {
             console.error('Error determining role:', err);
-            state.isHost = true;
-            showMenu();
+            if (state.isInZoom) {
+                state.isHost = true;
+                showMenu();
+            } else {
+                showScreen($idleScreen);
+                startIdlePolling();
+            }
         }
     }
 
@@ -1319,6 +1331,36 @@
         showMenu();
     }
 
+    // ---- Idle polling (esperando actividad) ----
+
+    var idlePollInterval = null;
+
+    function startIdlePolling() {
+        stopIdlePolling();
+        idlePollInterval = setInterval(async function () {
+            try {
+                var res = await fetch(
+                    'api.php?action=get_active&meeting_id=' + encodeURIComponent(state.meetingId)
+                );
+                var data = await res.json();
+                if (data.active) {
+                    stopIdlePolling();
+                    state.currentSection = data.section_id;
+                    navigateToSection(data.section_id, data.status, data);
+                }
+            } catch (err) {
+                console.error('Idle poll error:', err);
+            }
+        }, 4000);
+    }
+
+    function stopIdlePolling() {
+        if (idlePollInterval) {
+            clearInterval(idlePollInterval);
+            idlePollInterval = null;
+        }
+    }
+
     // ---- Participante: polling ----
 
     var pollInterval = null;
@@ -1351,7 +1393,16 @@
             );
             var data = await res.json();
 
-            if (!data.active) return;
+            if (!data.active) {
+                // Broadcast stopped - go back to idle for non-host
+                if (!state.isHost) {
+                    stopPolling();
+                    state.currentSection = null;
+                    showScreen($idleScreen);
+                    startIdlePolling();
+                }
+                return;
+            }
 
             // Si cambio la seccion activa, navegar
             if (data.section_id !== state.currentSection) {

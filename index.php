@@ -31,6 +31,16 @@ $version = time(); // cache-bust dinamico
             </div>
         </div>
 
+        <!-- Pantalla de espera (sin actividad) -->
+        <div id="idle-screen" class="screen hidden">
+            <div class="card idle-card">
+                <div class="idle-logo">uLIB</div>
+                <p class="idle-text">No hay actividad en este momento</p>
+                <p class="idle-subtext">Cuando el profesor inicie una actividad, aparecera aqui automaticamente.</p>
+                <div class="idle-pulse"></div>
+            </div>
+        </div>
+
         <!-- Menu de secciones (solo host) -->
         <div id="menu-screen" class="screen hidden">
             <div class="card">
