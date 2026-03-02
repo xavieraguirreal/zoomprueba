@@ -433,46 +433,21 @@
         var stagger = wordcloudRecentChanges > 3 ? 0.05 : 0.1;
 
         var placed = [];
-        // Shuffle rotations each render so positions vary
-        var rotationPool = [-8, 0, 0, 5, 90, 0, -5, 0, 0, 8, 0, 90, 0, 0, -6];
-        var rotations = rotationPool.slice();
-        for (var sh = rotations.length - 1; sh > 0; sh--) {
-            var ri = Math.floor(Math.random() * (sh + 1));
-            var tmp = rotations[sh]; rotations[sh] = rotations[ri]; rotations[ri] = tmp;
-        }
 
         for (var j = 0; j < sorted.length; j++) {
             var w = sorted[j];
             var ratio = parseInt(w.count) / maxCount;
             var fontSize = Math.max(0.75, (0.9 + ratio * 2.2) * scale);
             var color = wordcloudColors[j % wordcloudColors.length];
-            // Top word always horizontal and centered
-            var rotate = (j === 0) ? 0 : rotations[j % rotations.length];
 
             // Measure using a hidden element for accuracy
             var measure = document.createElement('span');
             measure.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;font-weight:700;font-size:' + fontSize + 'rem;font-family:inherit;';
             measure.textContent = w.word;
             document.body.appendChild(measure);
-            var measW = measure.offsetWidth + 6;
-            var measH = measure.offsetHeight + 4;
+            var estW = measure.offsetWidth + 10;
+            var estH = measure.offsetHeight + 6;
             document.body.removeChild(measure);
-
-            // Adjust bounding box for rotated words
-            var isVertical = (rotate === 90);
-            var absAngle = Math.abs(rotate) * Math.PI / 180;
-            var estW, estH;
-            if (isVertical) {
-                estW = measH + 8;
-                estH = measW + 8;
-            } else if (rotate !== 0) {
-                // Diagonal: expand bounding box to account for rotation
-                estW = Math.ceil(measW * Math.cos(absAngle) + measH * Math.sin(absAngle)) + 12;
-                estH = Math.ceil(measW * Math.sin(absAngle) + measH * Math.cos(absAngle)) + 12;
-            } else {
-                estW = measW + 2;
-                estH = measH + 2;
-            }
 
             var span = document.createElement('span');
             span.className = 'wordcloud-word' + (j === 0 ? ' wordcloud-word-top' : '');
@@ -480,13 +455,8 @@
             span.textContent = w.word;
             span.style.fontSize = fontSize + 'rem';
             span.style.color = color;
-            span.style.setProperty('--rotate', rotate + 'deg');
             span.style.animationDuration = baseSpeed + 's';
             span.style.animationDelay = (j * stagger) + 's';
-
-            if (isVertical) {
-                span.style.transformOrigin = 'top left';
-            }
 
             var pos = placeWord(placed, cloudWidth, cloudHeight, estW, estH);
             span.style.left = pos.x + 'px';
@@ -498,41 +468,40 @@
     }
 
     function placeWord(placed, cloudW, cloudH, estW, estH) {
+        var margin = 8;
         var cx = (cloudW - estW) / 2;
         var cy = (cloudH - estH) / 2;
-        // Random starting angle so every render produces a different layout
         var angle = Math.random() * Math.PI * 2;
         var radius = 0;
 
-        for (var i = 0; i < 400; i++) {
+        for (var i = 0; i < 500; i++) {
             var x = cx + Math.cos(angle) * radius;
             var y = cy + Math.sin(angle) * radius;
 
-            // Strict bounds
-            if (x >= 2 && y >= 2 && x + estW <= cloudW - 2 && y + estH <= cloudH - 2) {
+            if (x >= margin && y >= margin && x + estW <= cloudW - margin && y + estH <= cloudH - margin) {
                 if (!hasCollision(placed, x, y, estW, estH)) {
                     return { x: x, y: y };
                 }
             }
 
             angle += 0.5;
-            radius += 1.0;
+            radius += 0.8;
         }
 
         // Fallback: find any gap
-        for (var a = 0; a < 50; a++) {
-            var fx = Math.random() * Math.max(1, cloudW - estW - 4) + 2;
-            var fy = Math.random() * Math.max(1, cloudH - estH - 4) + 2;
+        for (var a = 0; a < 80; a++) {
+            var fx = Math.random() * Math.max(1, cloudW - estW - margin * 2) + margin;
+            var fy = Math.random() * Math.max(1, cloudH - estH - margin * 2) + margin;
             if (!hasCollision(placed, fx, fy, estW, estH)) {
                 return { x: fx, y: fy };
             }
         }
 
-        return { x: 2, y: Math.min(cloudH - estH - 2, placed.length * 20) };
+        return { x: margin, y: Math.min(cloudH - estH - margin, placed.length * 25 + margin) };
     }
 
     function hasCollision(placed, x, y, w, h) {
-        var pad = 6;
+        var pad = 8;
         for (var p = 0; p < placed.length; p++) {
             var r = placed[p];
             if (x < r.x + r.w + pad &&
