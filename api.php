@@ -102,12 +102,15 @@ try {
             if (!isset($sections[$sectionId])) {
                 jsonResponse(['error' => 'Seccion no valida'], 400);
             }
+            // Quiz usa started_at para el timer (se setea en start_quiz), el resto lo usa como inicio de sesion
+            $sectionType = $sections[$sectionId]['type'] ?? '';
+            $startedAt = ($sectionType === 'quiz') ? null : date('Y-m-d H:i:s');
             $stmt = $pdo->prepare(
                 "INSERT INTO meeting_active_section (meeting_id, section_id, status, started_at)
-                 VALUES (?, ?, 'voting', NULL)
-                 ON DUPLICATE KEY UPDATE section_id = VALUES(section_id), status = 'voting', started_at = NULL"
+                 VALUES (?, ?, 'voting', ?)
+                 ON DUPLICATE KEY UPDATE section_id = VALUES(section_id), status = 'voting', started_at = VALUES(started_at)"
             );
-            $stmt->execute([$meetingId, $sectionId]);
+            $stmt->execute([$meetingId, $sectionId, $startedAt]);
             jsonResponse(['success' => true, 'section_id' => $sectionId, 'status' => 'voting']);
             break;
 
@@ -238,7 +241,7 @@ try {
             }
 
             $stmt = $pdo->prepare(
-                "SELECT section_id, status FROM meeting_active_section WHERE meeting_id = ?"
+                "SELECT section_id, status, started_at FROM meeting_active_section WHERE meeting_id = ?"
             );
             $stmt->execute([$meetingId]);
             $row = $stmt->fetch();
@@ -271,14 +274,24 @@ try {
             } elseif ($sectionType === 'reactions') {
                 $since = date('Y-m-d H:i:s', time() - 10);
                 $response['reactions'] = getRecentReactions($pdo, $meetingId, $since);
-                // Conteos agregados para estilos race/energy/mosaic
-                $countStmt = $pdo->prepare(
-                    "SELECT emoji, COUNT(*) as count FROM reaction_events WHERE meeting_id = ? GROUP BY emoji ORDER BY count DESC"
-                );
-                $countStmt->execute([$meetingId]);
+                // Conteos agregados solo desde inicio de sesion
+                $sessionStart = $row['started_at'];
+                if ($sessionStart) {
+                    $countStmt = $pdo->prepare(
+                        "SELECT emoji, COUNT(*) as count FROM reaction_events WHERE meeting_id = ? AND created_at >= ? GROUP BY emoji ORDER BY count DESC"
+                    );
+                    $countStmt->execute([$meetingId, $sessionStart]);
+                    $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM reaction_events WHERE meeting_id = ? AND created_at >= ?");
+                    $totalStmt->execute([$meetingId, $sessionStart]);
+                } else {
+                    $countStmt = $pdo->prepare(
+                        "SELECT emoji, COUNT(*) as count FROM reaction_events WHERE meeting_id = ? GROUP BY emoji ORDER BY count DESC"
+                    );
+                    $countStmt->execute([$meetingId]);
+                    $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM reaction_events WHERE meeting_id = ?");
+                    $totalStmt->execute([$meetingId]);
+                }
                 $response['reaction_counts'] = $countStmt->fetchAll();
-                $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM reaction_events WHERE meeting_id = ?");
-                $totalStmt->execute([$meetingId]);
                 $response['reaction_total'] = (int) $totalStmt->fetchColumn();
             } elseif ($sectionType === 'quiz') {
                 // Incluir started_at y time_limit para sincronizar timer
@@ -427,14 +440,26 @@ try {
                 "INSERT INTO reaction_events (meeting_id, emoji, user_id) VALUES (?, ?, ?)"
             );
             $stmt->execute([$meetingId, $emoji, $userId]);
-            // Conteos para feedback instantáneo
-            $countStmt = $pdo->prepare(
-                "SELECT emoji, COUNT(*) as count FROM reaction_events WHERE meeting_id = ? GROUP BY emoji ORDER BY count DESC"
-            );
-            $countStmt->execute([$meetingId]);
+            // Conteos solo desde inicio de sesion
+            $sessionStmt = $pdo->prepare("SELECT started_at FROM meeting_active_section WHERE meeting_id = ?");
+            $sessionStmt->execute([$meetingId]);
+            $sessionStart = $sessionStmt->fetchColumn();
+            if ($sessionStart) {
+                $countStmt = $pdo->prepare(
+                    "SELECT emoji, COUNT(*) as count FROM reaction_events WHERE meeting_id = ? AND created_at >= ? GROUP BY emoji ORDER BY count DESC"
+                );
+                $countStmt->execute([$meetingId, $sessionStart]);
+                $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM reaction_events WHERE meeting_id = ? AND created_at >= ?");
+                $totalStmt->execute([$meetingId, $sessionStart]);
+            } else {
+                $countStmt = $pdo->prepare(
+                    "SELECT emoji, COUNT(*) as count FROM reaction_events WHERE meeting_id = ? GROUP BY emoji ORDER BY count DESC"
+                );
+                $countStmt->execute([$meetingId]);
+                $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM reaction_events WHERE meeting_id = ?");
+                $totalStmt->execute([$meetingId]);
+            }
             $reactionCounts = $countStmt->fetchAll();
-            $totalStmt = $pdo->prepare("SELECT COUNT(*) FROM reaction_events WHERE meeting_id = ?");
-            $totalStmt->execute([$meetingId]);
             $reactionTotal = (int) $totalStmt->fetchColumn();
             jsonResponse(['success' => true, 'reaction_counts' => $reactionCounts, 'reaction_total' => $reactionTotal]);
             break;
@@ -665,12 +690,14 @@ try {
             if (!isset($sections[$sectionKey])) {
                 jsonResponse(['error' => 'Seccion no encontrada'], 400);
             }
+            $sectionType = $sections[$sectionKey]['type'] ?? '';
+            $startedAt = ($sectionType === 'quiz') ? null : date('Y-m-d H:i:s');
             $stmt = $pdo->prepare(
                 "INSERT INTO meeting_active_section (meeting_id, section_id, status, started_at)
-                 VALUES ('broadcast', ?, 'voting', NULL)
-                 ON DUPLICATE KEY UPDATE section_id = VALUES(section_id), status = 'voting', started_at = NULL"
+                 VALUES ('broadcast', ?, 'voting', ?)
+                 ON DUPLICATE KEY UPDATE section_id = VALUES(section_id), status = 'voting', started_at = VALUES(started_at)"
             );
-            $stmt->execute([$sectionKey]);
+            $stmt->execute([$sectionKey, $startedAt]);
             jsonResponse(['success' => true, 'section_key' => $sectionKey]);
             break;
 

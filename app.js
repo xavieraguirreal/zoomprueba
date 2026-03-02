@@ -990,22 +990,13 @@
             for (var j = 0; j < emojis.length; j++) {
                 reactionCounts[j] = 0;
             }
-            // DEBUG: log emoji comparison
-            console.log('[sync] section emojis:', emojis.map(function(e, i) {
-                return i + ':' + e + ' cp:[' + Array.from(e).map(function(c) { return 'U+' + c.codePointAt(0).toString(16).toUpperCase(); }).join(',') + ']';
-            }));
-            console.log('[sync] server counts:', counts.map(function(c) {
-                return c.emoji + '=' + c.count + ' cp:[' + Array.from(c.emoji).map(function(ch) { return 'U+' + ch.codePointAt(0).toString(16).toUpperCase(); }).join(',') + ']';
-            }));
             // Map server counts to indices
             for (var i = 0; i < counts.length; i++) {
                 var idx = emojiToIndex(counts[i].emoji);
-                console.log('[sync] "' + counts[i].emoji + '" → index ' + idx + ' (count: ' + counts[i].count + ')');
                 if (idx >= 0) {
                     reactionCounts[idx] = parseInt(counts[i].count);
                 }
             }
-            console.log('[sync] result reactionCounts:', JSON.stringify(reactionCounts));
         }
         if (total !== undefined) reactionTotal = total;
 
