@@ -916,6 +916,7 @@
     }
 
     async function sendReaction(emoji, idx) {
+        console.log('[click] emoji=' + emoji + ' idx=' + idx + ' style=' + reactionStyle);
         // Efecto local inmediato según estilo
         if (reactionStyle === 'explosive') {
             spawnReactionBurst(emoji, true);
@@ -947,6 +948,7 @@
                 }),
             });
             var data = await res.json();
+            console.log('[server response] counts:', JSON.stringify(data.reaction_counts), 'total:', data.reaction_total);
             // Sincronizar conteos desde servidor
             if (data.reaction_counts) {
                 syncReactionCounts(data.reaction_counts, data.reaction_total);
