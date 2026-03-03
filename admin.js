@@ -86,11 +86,38 @@ document.addEventListener('click', function(e) {
         addQuizOption();
         return;
     }
-    // Add emoji from picker grid
+    // Add emoji from picker grid (reactions)
     if (target.closest('.emoji-pick-btn')) {
         var btn = target.closest('.emoji-pick-btn');
         addEmojiFromPicker(btn.getAttribute('data-emoji'));
         return;
+    }
+    // Toggle opt-emoji dropdown (survey/quiz)
+    if (target.closest('.opt-emoji-btn')) {
+        var wrap = target.closest('.opt-emoji-wrap');
+        var dd = wrap.querySelector('.opt-emoji-dropdown');
+        // Close any other open dropdowns first
+        document.querySelectorAll('.opt-emoji-dropdown.open').forEach(function(d) {
+            if (d !== dd) d.classList.remove('open');
+        });
+        dd.classList.toggle('open');
+        return;
+    }
+    // Select emoji from mini dropdown
+    if (target.closest('.mini-emoji-opt')) {
+        var em = target.closest('.mini-emoji-opt').getAttribute('data-emoji');
+        var wrap = target.closest('.opt-emoji-wrap');
+        wrap.querySelector('.opt-emoji-btn').textContent = em;
+        wrap.querySelector('.opt-emoji-btn').setAttribute('data-value', em);
+        wrap.querySelector('.opt-emoji').value = em;
+        wrap.querySelector('.opt-emoji-dropdown').classList.remove('open');
+        return;
+    }
+    // Close emoji dropdown when clicking outside
+    if (!target.closest('.opt-emoji-wrap')) {
+        document.querySelectorAll('.opt-emoji-dropdown.open').forEach(function(d) {
+            d.classList.remove('open');
+        });
     }
     // Toggle active
     if (target.closest('.btn-toggle-active')) {
@@ -613,10 +640,27 @@ function surveyOptionRow(num, label, emoji, color) {
     return '<div class="option-row">' +
         '<span class="option-num">' + num + '</span>' +
         '<input type="text" placeholder="Texto" value="' + esc(label) + '" class="opt-label">' +
-        '<input type="text" placeholder="Emoji" value="' + esc(emoji) + '" class="opt-emoji" style="width:50px">' +
+        '<div class="opt-emoji-wrap">' +
+            '<button type="button" class="opt-emoji-btn" data-value="' + esc(emoji) + '">' + (emoji || '\uD83D\uDE00') + '</button>' +
+            '<input type="hidden" class="opt-emoji" value="' + esc(emoji) + '">' +
+            '<div class="opt-emoji-dropdown">' +
+                buildMiniEmojiGrid() +
+            '</div>' +
+        '</div>' +
         '<input type="color" value="' + color + '" class="opt-color">' +
         '<button type="button" class="btn-remove-option" title="Quitar">&times;</button>' +
     '</div>';
+}
+
+function buildMiniEmojiGrid() {
+    var all = [];
+    EMOJI_CATALOG.forEach(function(g) { all = all.concat(g.emojis); });
+    var html = '<div class="mini-emoji-grid">';
+    all.forEach(function(em) {
+        html += '<button type="button" class="mini-emoji-opt" data-emoji="' + em + '">' + em + '</button>';
+    });
+    html += '</div>';
+    return html;
 }
 
 function addSurveyOption() {

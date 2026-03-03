@@ -165,6 +165,16 @@
         .btn-remove-option { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 1.125rem; padding: 0 0.25rem; line-height: 1; }
         .btn-remove-option:hover { opacity: 0.7; }
 
+        /* ---- Emoji dropdown for survey/quiz options ---- */
+        .opt-emoji-wrap { position: relative; }
+        .opt-emoji-btn { width: 42px; height: 34px; border: 1px solid var(--border); border-radius: 4px; background: #fff; font-size: 1.125rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: border-color 0.15s; }
+        .opt-emoji-btn:hover { border-color: var(--primary); }
+        .opt-emoji-dropdown { display: none; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); z-index: 100; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,0.12); padding: 0.5rem; margin-top: 4px; width: 240px; max-height: 200px; overflow-y: auto; }
+        .opt-emoji-dropdown.open { display: block; }
+        .mini-emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
+        .mini-emoji-opt { background: none; border: 1px solid transparent; border-radius: 4px; font-size: 1.1rem; cursor: pointer; padding: 3px; line-height: 1; text-align: center; transition: background 0.12s, transform 0.1s; }
+        .mini-emoji-opt:hover { background: #e0e7ff; border-color: var(--primary); transform: scale(1.2); }
+
         /* ---- Emoji list ---- */
         .emoji-list { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-top: 0.5rem; min-height: 2rem; }
         .emoji-tag { display: inline-flex; align-items: center; gap: 0.25rem; background: #eff6ff; border: 1px solid var(--primary); border-radius: 999px; padding: 0.25rem 0.5rem; font-size: 1.125rem; }
